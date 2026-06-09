@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Lingora
 
-## Getting Started
+Lingora là web app học tiếng Anh bằng AI cho người Việt, xây bằng Next.js App
+Router, TypeScript, Tailwind CSS, shadcn/ui và Supabase.
 
-First, run the development server:
+## Tính năng hiện có
+
+- Dashboard responsive, theo dõi tiến độ và các module học.
+- Gia sư AI với gateway nhiều provider.
+- Auto Detect theo API key, model hoặc Base URL.
+- Google Gemini, Groq, OpenAI, OpenRouter, Anthropic và API
+  OpenAI-compatible tùy chỉnh.
+- Workspace cho tài liệu, từ vựng, flashcards, đọc, nói, viết, dịch, quiz.
+- Route trích xuất nội dung PDF, DOCX và TXT.
+- Supabase migration gồm Auth profile, Storage, pgvector, RLS và semantic search.
+
+## Chạy local
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+Copy-Item .env.example .env.local
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Mở `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Không bắt buộc cấu hình Supabase để xem UI. Để gọi AI, nhập API key ở trang
+`/settings` hoặc cấu hình một trong các biến môi trường AI.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Supabase
 
-## Learn More
+Chạy migration:
 
-To learn more about Next.js, take a look at the following resources:
+```text
+supabase/migrations/202606090001_initial_lingora.sql
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Storage path của mỗi file phải bắt đầu bằng user id:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```text
+<user-id>/<document-id>/<file-name>
+```
 
-## Deploy on Vercel
+Vector hiện dùng 1536 chiều. Nếu embedding model của bạn có dimension khác,
+đổi cả cột `embedding` và tham số `query_embedding` trong migration trước khi
+đưa dữ liệu production vào.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Bảo mật API key
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Key nhập trong UI chỉ lưu ở `sessionStorage` của tab và được gửi đến Next.js
+Route Handler qua HTTPS. Không lưu key vào Supabase. Với production nhiều người
+dùng, nên cấu hình key server-side hoặc dùng secret manager/KMS.
