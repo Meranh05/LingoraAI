@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/app-shell";
+import { getOptionalViewer } from "@/lib/auth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,11 +25,12 @@ export const metadata: Metadata = {
     "Gia sư tiếng Anh AI cho người Việt: tài liệu, từ vựng, phát âm, viết và dịch thuật.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const viewer = await getOptionalViewer();
   return (
     <html
       lang="vi"
@@ -36,7 +38,7 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <TooltipProvider>
-          <AppShell>{children}</AppShell>
+          <AppShell viewer={viewer}>{children}</AppShell>
           <Toaster richColors position="top-right" />
         </TooltipProvider>
       </body>

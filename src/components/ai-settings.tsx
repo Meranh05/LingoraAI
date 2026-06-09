@@ -52,6 +52,7 @@ export function AiSettings() {
   const [baseUrl, setBaseUrl] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [serverGeminiConfigured, setServerGeminiConfigured] = useState(false);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -61,6 +62,12 @@ export function AiSettings() {
       setModel(config.model);
       setBaseUrl(config.baseUrl);
     });
+    fetch("/api/ai/providers")
+      .then((response) => response.json())
+      .then((data: { configured?: { gemini?: boolean } }) =>
+        setServerGeminiConfigured(Boolean(data.configured?.gemini)),
+      )
+      .catch(() => setServerGeminiConfigured(false));
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
@@ -207,12 +214,21 @@ export function AiSettings() {
                       Đã nhận diện:{" "}
                       <strong>{getProvider(detected)?.name}</strong>
                     </span>
+                  ) : serverGeminiConfigured ? (
+                    <span>
+                      Server đã cấu hình: <strong>Google Gemini</strong>
+                    </span>
                   ) : (
                     <span className="text-muted-foreground">
                       Nhập key, model hoặc Base URL để nhận diện.
                     </span>
                   )}
                 </div>
+              ) : null}
+              {provider === "gemini" && !apiKey && serverGeminiConfigured ? (
+                <p className="text-xs text-emerald-700">
+                  Đang dùng GEMINI_API_KEY được bảo vệ trên server.
+                </p>
               ) : null}
             </div>
 

@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { Bot, FileText, Send, Settings2, Sparkles, User } from "lucide-react";
+import { Bot, FileText, Send, Settings2, Sparkles, ThumbsDown, ThumbsUp, User } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +22,7 @@ const initialMessages: Message[] = [
   {
     role: "assistant",
     content:
-      "Chào Minh! Mình là gia sư Lingora. Bạn có thể hỏi về ngữ pháp, từ vựng, bài viết hoặc nội dung tài liệu. Mình sẽ giải thích bằng tiếng Việt trước.",
+      "Chào bạn! Mình là gia sư Lingora. Bạn có thể hỏi về ngữ pháp, từ vựng, bài viết hoặc nội dung tài liệu. Mình sẽ giải thích bằng tiếng Việt trước.",
   },
 ];
 
@@ -30,6 +30,7 @@ export function AiTutor() {
   const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string>();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -48,6 +49,7 @@ export function AiTutor() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...config,
+          sessionId,
           messages: [
             {
               role: "system",
@@ -58,8 +60,9 @@ export function AiTutor() {
           ],
         }),
       });
-      const data = (await response.json()) as { text?: string; error?: string };
+      const data = (await response.json()) as { text?: string; error?: string; sessionId?: string };
       if (!response.ok) throw new Error(data.error ?? "Không thể gọi AI.");
+      setSessionId(data.sessionId);
       setMessages((current) => [
         ...current,
         { role: "assistant", content: data.text ?? "" },
@@ -69,6 +72,25 @@ export function AiTutor() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function rate(index: number, rating: -1 | 1) {
+    const output = messages[index];
+    const input = [...messages.slice(0, index)]
+      .reverse()
+      .find((message) => message.role === "user");
+    const response = await fetch("/api/ai/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        inputText: input?.content,
+        outputText: output.content,
+        rating,
+        category: "tutor_chat",
+      }),
+    });
+    if (response.ok) toast.success("Cảm ơn bạn. Feedback đã được ghi nhận.");
+    else toast.error("Không thể lưu feedback.");
   }
 
   return (
@@ -111,6 +133,26 @@ export function AiTutor() {
                   }`}
                 >
                   {message.content}
+                  {message.role === "assistant" && index > 0 ? (
+                    <div className="mt-3 flex gap-1 border-t pt-2">
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => rate(index, 1)}
+                      >
+                        <ThumbsUp />
+                        <span className="sr-only">Câu trả lời hữu ích</span>
+                      </Button>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => rate(index, -1)}
+                      >
+                        <ThumbsDown />
+                        <span className="sr-only">Câu trả lời chưa tốt</span>
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
                 {message.role === "user" ? (
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">

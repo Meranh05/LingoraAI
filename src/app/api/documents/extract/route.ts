@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
+import { getOptionalViewer } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -16,6 +18,10 @@ function normalizeText(text: string) {
 
 export async function POST(request: Request) {
   try {
+    const viewer = await getOptionalViewer();
+    if (!viewer) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const formData = await request.formData();
     const file = formData.get("file");
     if (!(file instanceof File)) {
@@ -53,8 +59,43 @@ export async function POST(request: Request) {
     }
 
     const normalized = normalizeText(text);
+    if (!normalized) {
+      return NextResponse.json(
+        { error: "Tài liệu không có nội dung văn bản có thể đọc." },
+        { status: 422 },
+      );
+    }
+    const supabase = await createClient();
+    const documentId = crypto.randomUUID();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const storagePath = `${viewer.id}/${documentId}/${safeName}`;
+    const { error: uploadError } = await supabase.storage
+      .from("documents")
+      .upload(storagePath, buffer, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
+    if (uploadError) throw uploadError;
+    const { data: document, error: insertError } = await supabase
+      .from("documents")
+      .insert({
+        id: documentId,
+        user_id: viewer.id,
+        file_name: file.name,
+        storage_path: storagePath,
+        file_type: extension,
+        raw_text: normalized,
+        status: "ready",
+      })
+      .select("id,file_name,file_type,status,created_at")
+      .single();
+    if (insertError) {
+      await supabase.storage.from("documents").remove([storagePath]);
+      throw insertError;
+    }
     return NextResponse.json(
       {
+        document,
         fileName: file.name,
         fileType: extension,
         characters: normalized.length,

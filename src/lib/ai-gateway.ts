@@ -26,6 +26,17 @@ const envKeys: Partial<Record<ProviderDefinition["id"], string | undefined>> = {
   anthropic: process.env.ANTHROPIC_API_KEY,
 };
 
+function detectConfiguredProvider() {
+  const priority: ProviderDefinition["id"][] = [
+    "gemini",
+    "groq",
+    "openai",
+    "openrouter",
+    "anthropic",
+  ];
+  return priority.find((provider) => Boolean(envKeys[provider]?.trim())) ?? null;
+}
+
 function normalizeBaseUrl(url: string) {
   return url.replace(/\/+$/, "");
 }
@@ -129,7 +140,8 @@ async function anthropicChat(
 export async function runChat(request: GatewayRequest) {
   const detected =
     request.provider === "auto"
-      ? detectProvider(request.apiKey ?? "", request.model, request.baseUrl)
+      ? detectProvider(request.apiKey ?? "", request.model, request.baseUrl) ??
+        detectConfiguredProvider()
       : request.provider;
 
   if (!detected) {

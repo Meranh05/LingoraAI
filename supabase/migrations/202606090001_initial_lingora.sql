@@ -136,12 +136,12 @@ as $$
   select
     dc.id,
     dc.content,
-    1 - (dc.embedding <=> query_embedding) as similarity
+    1 - (dc.embedding OPERATOR(extensions.<=>) query_embedding) as similarity
   from public.document_chunks dc
   where dc.document_id = match_document_id
     and dc.user_id = (select auth.uid())
     and dc.embedding is not null
-  order by dc.embedding <=> query_embedding
+  order by dc.embedding OPERATOR(extensions.<=>) query_embedding
   limit least(match_count, 20);
 $$;
 
