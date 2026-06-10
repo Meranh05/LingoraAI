@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -109,9 +110,20 @@ function promptText(prompt: Record<string, string>, locale: string) {
 export function LearningWorkspace({
   kind,
   data,
+  challenge,
 }: {
   kind: keyof typeof definitions;
   data: WorkspaceData;
+  challenge?: {
+    id: string;
+    title: string;
+    description: string;
+    difficulty: string;
+    target: number;
+    minScore: number;
+    progress: number;
+    completed: boolean;
+  };
 }) {
   const router = useRouter();
   const { locale, t } = useLocale();
@@ -122,7 +134,12 @@ export function LearningWorkspace({
   const [text, setText] = useState("");
   const [result, setResult] = useState("");
   const [answer, setAnswer] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [score, setScore] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState("");
+  const [rewards, setRewards] = useState({ xp: 0, tokens: 0 });
+  const [rewardEligible, setRewardEligible] = useState(true);
+  const [startedAt, setStartedAt] = useState(() => Date.now());
   const [cardIndex, setCardIndex] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [showBack, setShowBack] = useState(false);
@@ -136,11 +153,13 @@ export function LearningWorkspace({
   const questions = useMemo(
     () =>
       data.questions.filter((question) =>
-        kind === "quiz"
-          ? ["multiple_choice", "true_false"].includes(question.question_type)
+        challenge
+          ? true
+          : kind === "quiz"
+          ? !["essay", "speaking"].includes(question.question_type)
           : question.skill === skill,
       ),
-    [data.questions, kind, skill],
+    [challenge, data.questions, kind, skill],
   );
   const question = questions[questionIndex % Math.max(questions.length, 1)];
 
@@ -195,14 +214,30 @@ export function LearningWorkspace({
       body: JSON.stringify({
         questionId: question.id,
         answer,
-        durationSeconds: 60,
-        module: kind === "quiz" ? "quiz" : "practice",
+        durationSeconds: Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
+        module: challenge ? "competition" : kind === "quiz" ? "quiz" : "practice",
+        challengeId: challenge?.id,
+        idempotencyKey,
       }),
     });
-    const payload = (await response.json()) as { error?: string; score?: number };
+    const payload = (await response.json()) as {
+      error?: string;
+      score?: number;
+      explanation?: Record<string, string>;
+      rewards?: { xp: number; tokens: number };
+      rewardEligible?: boolean;
+    };
     setLoading(false);
     if (!response.ok) return toast.error(payload.error ?? "Không thể lưu kết quả.");
     setScore(payload.score ?? null);
+    setFeedback(
+      payload.explanation?.[locale] ??
+        payload.explanation?.vi ??
+        payload.explanation?.en ??
+        "",
+    );
+    setRewards(payload.rewards ?? { xp: 0, tokens: 0 });
+    setRewardEligible(payload.rewardEligible ?? true);
     play((payload.score ?? 0) >= 70 ? "complete" : "error");
     toast.success("Đã lưu kết quả luyện tập.");
     router.refresh();
@@ -211,6 +246,11 @@ export function LearningWorkspace({
   function nextQuestion() {
     setAnswer("");
     setScore(null);
+    setFeedback("");
+    setRewards({ xp: 0, tokens: 0 });
+    setRewardEligible(true);
+    setIdempotencyKey(crypto.randomUUID());
+    setStartedAt(Date.now());
     setQuestionIndex((current) => (current + 1) % Math.max(questions.length, 1));
   }
 
@@ -444,6 +484,22 @@ export function LearningWorkspace({
 
   return (
     <Page title={title} description={description} icon={Icon}>
+      {challenge ? (
+        <Card className="overflow-hidden border-0 bg-gradient-to-r from-indigo-950 via-violet-900 to-indigo-800 text-white">
+          <CardContent className="grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-violet-200">Competition Arena</p>
+              <h2 className="mt-1 text-2xl font-black">{challenge.title}</h2>
+              <p className="mt-2 text-sm text-violet-100">{challenge.description}</p>
+            </div>
+            <div className="min-w-52 rounded-2xl bg-white/10 p-4 backdrop-blur">
+              <div className="flex justify-between text-sm"><span>Tiến độ</span><strong>{challenge.progress}/{challenge.target}</strong></div>
+              <Progress value={(challenge.progress / challenge.target) * 100} className="mt-2" />
+              <p className="mt-2 text-xs text-violet-200">Cần tối thiểu {challenge.minScore} điểm mỗi câu.</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
       {question ? (
         <Card className="glass-panel interactive-lift max-w-4xl overflow-hidden">
           <CardHeader>
@@ -458,8 +514,8 @@ export function LearningWorkspace({
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             {question.passage ? <blockquote className="rounded-2xl bg-secondary/60 p-5 leading-7">{question.passage}</blockquote> : null}
-            {kind === "listening" ? <Button variant="outline" onClick={speakPassage}><Volume2 /> Phát audio</Button> : null}
-            {kind === "speaking" ? (
+            {question.skill === "listening" ? <Button variant="outline" onClick={speakPassage}><Volume2 /> Phát audio</Button> : null}
+            {question.skill === "speaking" ? (
               <>
                 <p className="rounded-2xl bg-secondary/60 p-5 text-lg">{question.prompt.model}</p>
                 <Button
@@ -498,7 +554,25 @@ export function LearningWorkspace({
                 </p>
               </>
             ) : null}
-            {question.options ? (
+            {question.question_type === "sentence_order" && question.options?.length ? (
+              <div className="flex flex-col gap-4">
+                <div className="min-h-16 rounded-2xl border-2 border-dashed bg-white/70 p-4 font-medium">
+                  {answer || "Chọn các từ theo đúng thứ tự..."}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {question.options.map((option) => (
+                    <Button
+                      key={option.id}
+                      variant="outline"
+                      onClick={() => setAnswer((current) => `${current} ${option.text}`.trim())}
+                    >
+                      {option.text}
+                    </Button>
+                  ))}
+                  <Button variant="ghost" onClick={() => setAnswer("")}><RotateCcw /> Xếp lại</Button>
+                </div>
+              </div>
+            ) : question.options?.length ? (
               <RadioGroup value={answer} onValueChange={(value) => setAnswer(value ?? "")}>
                 {question.options.map((option) => (
                   <label key={option.id} className="interactive-lift flex cursor-pointer items-center gap-3 rounded-2xl border bg-white/75 p-4 has-[[data-checked]]:border-primary has-[[data-checked]]:bg-primary/5">
@@ -507,9 +581,34 @@ export function LearningWorkspace({
                 ))}
               </RadioGroup>
             ) : (
-              <Textarea value={answer} onChange={(event) => setAnswer(event.target.value)} className="min-h-32 bg-white/80" placeholder={kind === "speaking" ? t("workspace.voiceTranscript") : t("workspace.answer")} />
+              <Textarea value={answer} onChange={(event) => setAnswer(event.target.value)} className="min-h-32 bg-white/80" placeholder={question.skill === "speaking" ? t("workspace.voiceTranscript") : t("workspace.answer")} />
             )}
-            {score !== null ? <div className={`rounded-2xl border p-4 font-semibold ${score >= 70 ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{t("workspace.savedScore", { score })}</div> : null}
+            {score !== null ? (
+              <div className={`relative overflow-hidden rounded-2xl border p-5 ${score >= 70 ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+                <div className="flex items-center gap-4">
+                  <Image
+                    src={score >= 70 ? "/mascot/lumo-celebration.gif" : "/mascot/lumo-encourage.png"}
+                    alt={score >= 70 ? "Lumo ăn mừng" : "Lumo động viên"}
+                    width={88}
+                    height={88}
+                    unoptimized={score >= 70}
+                    className="size-20 object-contain"
+                  />
+                  <div>
+                    <p className="text-xl font-bold">{t("workspace.savedScore", { score })}</p>
+                    <p className="mt-1 text-sm font-semibold">
+                      +{rewards.xp} XP · +{rewards.tokens} Lingora Token
+                    </p>
+                    {!rewardEligible ? (
+                      <p className="mt-1 text-xs font-semibold text-amber-700">
+                        Kết quả đã lưu nhưng không phát thưởng do lặp câu, cooldown hoặc đạt hạn mức ngày.
+                      </p>
+                    ) : null}
+                    {feedback ? <p className="mt-2 text-sm font-normal leading-6 opacity-80">{feedback}</p> : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
             <div className="flex gap-3">
               <Button onClick={submitAttempt} disabled={!answer.trim() || loading}>{loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 />} {t("workspace.submit")}</Button>
               {score !== null && questions.length > 1 ? (
@@ -517,7 +616,7 @@ export function LearningWorkspace({
                   {t("workspace.next")}
                 </Button>
               ) : (
-                <Button variant="outline" onClick={() => { setAnswer(""); setScore(null); }}><RotateCcw /> {t("common.retry")}</Button>
+                <Button variant="outline" onClick={() => { setAnswer(""); setScore(null); setFeedback(""); setRewards({ xp: 0, tokens: 0 }); setRewardEligible(true); setIdempotencyKey(crypto.randomUUID()); setStartedAt(Date.now()); }}><RotateCcw /> {t("common.retry")}</Button>
               )}
             </div>
           </CardContent>

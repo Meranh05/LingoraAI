@@ -4,10 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
-  BookOpenCheck,
   BrainCircuit,
-  CheckCircle2,
-  Database,
   FileJson,
   KeyRound,
   LockKeyhole,
@@ -35,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AdminContentStudio } from "@/components/admin-content-studio";
 
 export function AdminUsersPage({ users }: { users: AdminUserRow[] }) {
   const [query, setQuery] = useState("");
@@ -122,51 +120,12 @@ export function AdminUsersPage({ users }: { users: AdminUserRow[] }) {
 
 export function AdminContentPage({
   stats,
+  studio,
 }: {
   stats: { paths: number; units: number; questions: number; documents: number };
+  studio: React.ComponentProps<typeof AdminContentStudio>["studio"];
 }) {
-  const content = [
-    ["Lộ trình", stats.paths, "learning_paths", CheckCircle2],
-    ["Đơn vị bài học", stats.units, "learning_units", BookOpenCheck],
-    ["Ngân hàng câu hỏi", stats.questions, "practice_questions", BrainCircuit],
-    ["Tài liệu người dùng", stats.documents, "documents", Database],
-  ] as const;
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-950">
-          Nội dung học
-        </h1>
-        <p className="mt-2 text-slate-500">
-          Quản lý lộ trình, bài học, câu hỏi và tài liệu dùng chung.
-        </p>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        {content.map(([title, count, description, Icon]) => (
-          <Card key={title}>
-            <CardContent className="flex items-center gap-4 p-6">
-              <span className="flex size-12 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-                <Icon className="size-5" />
-              </span>
-              <div>
-                <p className="text-2xl font-bold">{count.toLocaleString()}</p>
-                <p className="font-semibold">{title}</p>
-                <p className="text-xs text-muted-foreground">{description}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Quy trình xuất bản</CardTitle>
-          <CardDescription>
-            Draft → review → published. User chỉ đọc nội dung đã xuất bản.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    </div>
-  );
+  return <AdminContentStudio stats={stats} studio={studio} />;
 }
 
 type TrainingCandidate = {

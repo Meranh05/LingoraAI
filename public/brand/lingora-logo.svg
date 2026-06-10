@@ -1,0 +1,12 @@
+<svg width="196" height="48" viewBox="0 0 196 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lingora-mark" x1="4" y1="8" x2="52" y2="40" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB"/>
+      <stop offset="0.52" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#4F46E5"/>
+    </linearGradient>
+  </defs>
+  <path d="M5 31.5C10.8 31.5 11.2 14.5 17 14.5C22.8 14.5 23.2 34 29 34C34.8 34 35.2 18.8 41 18.8C44.5 18.8 46 22 51 20.2" stroke="url(#lingora-mark)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="17" cy="14.5" r="2.8" fill="#38BDF8"/>
+  <text x="60" y="32" fill="#0F2450" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="25" font-weight="750" letter-spacing="-0.8">Lingora</text>
+</svg>

@@ -1,0 +1,2 @@
+-- The base secure_learning_engine migration contains the qualified
+-- learning_reward_daily columns. This marker mirrors the production hotfix.

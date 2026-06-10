@@ -8,5 +8,5 @@ export default async function Page() {
   if (!(await hasFeatureAccess(viewer.id, "progress", "basic"))) {
     redirect("/store?required=progress");
   }
-  return <LearningWorkspace kind="progress" data={await getLearningWorkspaceData(viewer)} />;
+  return <LearningWorkspace kind="progress" data={await getLearningWorkspaceData(viewer, { kind: "progress" })} />;
 }

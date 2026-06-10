@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getOptionalViewer } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getLevelState } from "@/lib/gamification";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("join_leaderboard") }),
@@ -18,6 +19,46 @@ export async function POST(request: Request) {
   const supabase = await createClient();
 
   if (input.action === "join_challenge") {
+    const now = new Date().toISOString();
+    const [{ data: challenge }, { data: wallet }] = await Promise.all([
+      supabase
+        .from("learning_challenges")
+        .select("id,level_required,is_published,starts_at,ends_at")
+        .eq("id", input.challengeId)
+        .maybeSingle(),
+      supabase
+        .from("user_wallets")
+        .select("xp")
+        .eq("user_id", viewer.id)
+        .maybeSingle(),
+    ]);
+    if (
+      !challenge ||
+      !challenge.is_published ||
+      challenge.starts_at > now ||
+      challenge.ends_at < now
+    ) {
+      return NextResponse.json(
+        { error: "Thử thách không còn khả dụng." },
+        { status: 400 },
+      );
+    }
+    const level = getLevelState(Number(wallet?.xp ?? 0)).level;
+    if (level < challenge.level_required) {
+      return NextResponse.json(
+        { error: `Bạn cần đạt Level ${challenge.level_required}.` },
+        { status: 403 },
+      );
+    }
+    const admin = createAdminClient();
+    await admin.from("leaderboard_entries").upsert(
+      {
+        user_id: viewer.id,
+        display_name: viewer.fullName,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id", ignoreDuplicates: true },
+    );
     const { error } = await supabase.from("challenge_participants").insert({
       challenge_id: input.challengeId,
       user_id: viewer.id,
@@ -26,6 +67,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
   if (input.action === "leave_challenge") {
+    const { data: participant } = await supabase
+      .from("challenge_participants")
+      .select("completed_at")
+      .eq("challenge_id", input.challengeId)
+      .eq("user_id", viewer.id)
+      .maybeSingle();
+    if (participant?.completed_at) {
+      return NextResponse.json(
+        { error: "Thử thách đã hoàn thành không thể tham gia lại để nhận thưởng." },
+        { status: 400 },
+      );
+    }
     const { error } = await supabase
       .from("challenge_participants")
       .delete()

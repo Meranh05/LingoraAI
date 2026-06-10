@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
@@ -25,7 +26,6 @@ import {
   PenLine,
   Settings,
   ShieldCheck,
-  Sparkles,
   Trophy,
   Waypoints,
 } from "lucide-react";
@@ -55,6 +55,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { GlobalSearch } from "@/components/global-search";
 import { useLocale } from "@/components/locale-provider";
 import { useExperience } from "@/components/experience-provider";
+import { MascotCompanion } from "@/components/lingora-mascot";
 
 const navigation = [
   { key: "dashboard", href: "/", icon: LayoutDashboard },
@@ -78,16 +79,8 @@ const navigation = [
 
 function Brand({ tagline }: { tagline: string }) {
   return (
-    <Link href="/" className="flex items-center gap-3 px-2">
-      <span className="flex size-10 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-sky-200">
-        <Sparkles className="size-5" />
-      </span>
-      <span>
-        <span className="block text-xl font-bold tracking-tight">Lingora</span>
-        <span className="block text-[11px] font-medium text-muted-foreground">
-          {tagline}
-        </span>
-      </span>
+    <Link href="/" className="flex items-center px-1" aria-label={`Lingora - ${tagline}`}>
+      <Image src="/brand/lingora-logo.svg" alt="Lingora" width={166} height={41} priority />
     </Link>
   );
 }
@@ -353,6 +346,7 @@ export function AppShell({
         <main className="mx-auto w-full max-w-[1500px] p-4 md:p-7">
           {children}
         </main>
+        <MascotCompanion />
       </div>
     </div>
   );

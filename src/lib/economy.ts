@@ -80,6 +80,13 @@ export async function hasFeatureAccess(
   featureCode: string,
   requiredPlan: PlanCode,
 ) {
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (profile?.role === "admin") return true;
   const billing = await getUserBilling(userId);
   if (hasPlan(billing.plan.code, requiredPlan)) return true;
   return hasActiveFeatureUnlock(userId, featureCode);

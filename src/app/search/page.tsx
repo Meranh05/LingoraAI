@@ -9,6 +9,6 @@ export default async function SearchPage({
 }) {
   const { q = "" } = await searchParams;
   const viewer = await requireViewer();
-  const data = await getLearningWorkspaceData(viewer);
+  const data = await getLearningWorkspaceData(viewer, { kind: "search" });
   return <SearchResults query={q} documents={data.documents} vocabulary={data.vocabulary} />;
 }

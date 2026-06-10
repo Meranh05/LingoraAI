@@ -28,6 +28,12 @@ type RoadmapData = {
     skill: string;
     level: string;
     estimatedMinutes: number;
+    mastery: number;
+    bestScore: number;
+    attempts: number;
+    passedQuestions: number;
+    totalQuestions: number;
+    completed: boolean;
   }>;
 };
 
@@ -75,15 +81,25 @@ export function Roadmap({ data }: { data: RoadmapData | null }) {
       />
       <div className="flex flex-col gap-4">
         {roadmap.units.map((unit, index) => {
-          const doneThreshold = roadmap.units.length ? (index / roadmap.units.length) * 100 : 0;
-          const done = roadmap.progress > doneThreshold;
+          const done = unit.completed;
           const current = roadmap.currentUnitId === unit.id || (!roadmap.currentUnitId && index === 0);
-          const locked = !roadmap.enrolled || (!done && !current);
+          const previousCompleted = index === 0 || roadmap.units[index - 1]?.completed;
+          const locked = !roadmap.enrolled || (!done && !current && !previousCompleted);
           return (
             <Card key={unit.id} className="glass-panel interactive-lift">
               <CardContent className="flex items-center gap-4 p-5">
                 <span className={`flex size-12 items-center justify-center rounded-2xl ${done ? "bg-emerald-100 text-emerald-700" : current ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>{done ? <Check /> : locked ? <Lock /> : <Play />}</span>
-                <div className="flex-1"><p className="font-semibold">{unit.position}. {unit.title}</p><p className="text-sm text-muted-foreground">{unit.description}</p><div className="mt-2 flex flex-wrap gap-2"><Badge variant="outline">{unit.level}</Badge><Badge variant="secondary">{unit.skill}</Badge><span className="flex items-center gap-1 text-xs text-muted-foreground"><Clock3 className="size-3" />{unit.estimatedMinutes} phút</span>{current ? <Badge><Target /> Đang học</Badge> : null}</div></div>
+                <div className="flex-1">
+                  <p className="font-semibold">{unit.position}. {unit.title}</p>
+                  <p className="text-sm text-muted-foreground">{unit.description}</p>
+                  <div className="mt-2 flex flex-wrap gap-2"><Badge variant="outline">{unit.level}</Badge><Badge variant="secondary">{unit.skill}</Badge><span className="flex items-center gap-1 text-xs text-muted-foreground"><Clock3 className="size-3" />{unit.estimatedMinutes} phút</span>{current ? <Badge><Target /> Đang học</Badge> : null}</div>
+                  <div className="mt-3 flex items-center gap-3">
+                    <Progress value={unit.mastery} className="max-w-64" />
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {unit.passedQuestions}/{unit.totalQuestions} câu · Mastery {Math.round(unit.mastery)}%
+                    </span>
+                  </div>
+                </div>
                 {!locked ? <Button nativeButton={false} render={<Link href={`/${unit.skill}`} />}>Học</Button> : null}
               </CardContent>
             </Card>

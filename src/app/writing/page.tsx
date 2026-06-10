@@ -8,5 +8,5 @@ export default async function Page() {
   if (!(await hasFeatureAccess(viewer.id, "writing", "basic"))) {
     redirect("/store?required=writing");
   }
-  return <LearningWorkspace kind="writing" data={await getLearningWorkspaceData(viewer)} />;
+  return <LearningWorkspace kind="writing" data={await getLearningWorkspaceData(viewer, { kind: "writing" })} />;
 }

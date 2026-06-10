@@ -8,5 +8,5 @@ export default async function Page() {
   if (!(await hasFeatureAccess(viewer.id, "translation", "basic"))) {
     redirect("/store?required=translation");
   }
-  return <LearningWorkspace kind="translation" data={await getLearningWorkspaceData(viewer)} />;
+  return <LearningWorkspace kind="translation" data={await getLearningWorkspaceData(viewer, { kind: "translation" })} />;
 }

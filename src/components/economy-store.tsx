@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useExperience } from "@/components/experience-provider";
+import { getLevelState } from "@/lib/gamification";
 
 type EconomyData = Awaited<
   ReturnType<typeof import("@/lib/economy").getEconomyData>
@@ -46,8 +47,7 @@ export function EconomyStore({ data }: { data: EconomyData }) {
   const [currency, setCurrency] = useState<"vnd" | "usd">("vnd");
   const [loading, setLoading] = useState("");
   const { play } = useExperience();
-  const level = Math.floor(Number(data.wallet.xp) / 500) + 1;
-  const levelProgress = Number(data.wallet.xp) % 500;
+  const levelState = getLevelState(Number(data.wallet.xp));
 
   async function unlock(catalogCode: string) {
     setLoading(catalogCode);
@@ -91,7 +91,7 @@ export function EconomyStore({ data }: { data: EconomyData }) {
         icon={Coins}
         title="Lingora Rewards"
         description="Kiếm XP và token qua học tập, dùng token để mở khóa tính năng có thời hạn hoặc mua thêm bằng Stripe."
-        eyebrow={`Level ${level}`}
+        eyebrow={`Level ${levelState.level} · ${levelState.title}`}
         tone="amber"
         aside={
           <div className="grid min-w-72 grid-cols-2 gap-2">
@@ -113,10 +113,10 @@ export function EconomyStore({ data }: { data: EconomyData }) {
         <CardContent className="grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-center">
           <div>
             <div className="mb-2 flex justify-between text-sm">
-              <span className="font-semibold">Level {level}</span>
-              <span>{levelProgress} / 500 XP</span>
+              <span className="font-semibold">Level {levelState.level}</span>
+              <span>{levelState.current} / {levelState.required} XP</span>
             </div>
-            <Progress value={(levelProgress / 500) * 100} />
+            <Progress value={levelState.progress} />
           </div>
           <Badge variant="secondary" className="px-4 py-2">
             <Flame /> Học để nhận 1–3 token mỗi event

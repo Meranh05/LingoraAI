@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useActionState } from "react";
-import { Mail, ShieldCheck, Sparkles } from "lucide-react";
+import { Mail, ShieldCheck } from "lucide-react";
 import {
   sendMagicLink,
   signInWithGoogle,
@@ -57,12 +58,7 @@ export function AuthForm({
   return (
     <div className="grid min-h-screen bg-[linear-gradient(145deg,#f0fbff,#dff6ff)] lg:grid-cols-[1fr_560px]">
       <section className="relative hidden overflow-hidden p-12 lg:flex lg:flex-col lg:justify-between">
-        <div className="flex items-center gap-3 text-xl font-bold">
-          <span className="flex size-11 items-center justify-center rounded-2xl bg-primary text-white">
-            <Sparkles className="size-5" />
-          </span>
-          Lingora
-        </div>
+        <Image src="/brand/lingora-logo.svg" alt="Lingora" width={196} height={48} priority />
         <div className="max-w-xl">
           <h1 className="text-5xl font-bold leading-tight tracking-tight text-slate-900">
             Lộ trình tiếng Anh được cá nhân hóa bởi AI.
@@ -81,10 +77,7 @@ export function AuthForm({
         <Card className="glass-panel w-full max-w-lg">
           <CardHeader>
             <div className="mb-3 flex items-center gap-3 lg:hidden">
-              <span className="flex size-10 items-center justify-center rounded-2xl bg-primary text-white">
-                <Sparkles className="size-5" />
-              </span>
-              <span className="text-xl font-bold">Lingora</span>
+              <Image src="/brand/lingora-logo.svg" alt="Lingora" width={156} height={38} priority />
             </div>
             <CardTitle className="text-2xl">
               {mode === "login" ? "Chào mừng trở lại" : "Tạo tài khoản Lingora"}

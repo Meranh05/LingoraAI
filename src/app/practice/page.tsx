@@ -4,6 +4,6 @@ import { getLearningWorkspaceData } from "@/lib/learning-data";
 
 export default async function PracticePage() {
   const viewer = await requireViewer();
-  const data = await getLearningWorkspaceData(viewer);
+  const data = await getLearningWorkspaceData(viewer, { kind: "practice" });
   return <PracticeCenter progress={data.progress} />;
 }

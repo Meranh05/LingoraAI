@@ -1,0 +1,2 @@
+-- The base secure_learning_engine migration now calculates accuracy,
+-- speed and streak points directly in record_secure_practice_attempt.
