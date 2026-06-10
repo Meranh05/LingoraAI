@@ -31,6 +31,7 @@ It combines:
 - Document extraction, bilingual summaries, questions and vocabulary.
 - Learning roadmaps, skill mastery and progress analytics.
 - OpenAI, Gemini, Groq, OpenRouter, Anthropic and custom compatible APIs.
+- Stripe subscriptions with Basic, Plus and Pro plans in VND or USD.
 - A consent-based AI feedback pipeline for building anonymized training data.
 - Vietnamese, English, Japanese and Thai navigation.
 
@@ -82,6 +83,7 @@ liệu, luyện kỹ năng thích ứng và bảo vệ dữ liệu người dùn
 | Documents | PDF/DOCX/TXT extraction, summary, questions, vocabulary |
 | AI | Multi-provider gateway, auto-detect, user memory, explicit feedback |
 | Admin | User role/status management, metrics, AI Lab, JSONL export |
+| Billing | Stripe Checkout, Customer Portal, webhook sync, quotas, revenue dashboard |
 | Privacy | Per-user rows, private storage, consent snapshot, PII filtering |
 | Internationalization | Vietnamese, English, Japanese and Thai navigation |
 
@@ -118,6 +120,8 @@ supabase/migrations/202606090001_initial_lingora.sql
 supabase/migrations/202606090002_auth_rbac_learning_ai.sql
 supabase/migrations/202606090003_real_learning_workflows.sql
 supabase/migrations/202606090004_security_hardening.sql
+supabase/migrations/202606100001_competition_leaderboard.sql
+supabase/migrations/202606100002_billing_subscriptions.sql
 ```
 
 4. Enable Email and Google in **Authentication → Providers**.
@@ -154,7 +158,39 @@ GEMINI_API_KEY=
 GROQ_API_KEY=
 OPENROUTER_API_KEY=
 ANTHROPIC_API_KEY=
+
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
 ```
+
+## Stripe Billing
+
+Lingora uses Stripe Checkout for recurring subscriptions and Stripe Customer
+Portal for payment-method updates, invoices and cancellation.
+
+1. Add the Stripe test secret key to `STRIPE_SECRET_KEY`.
+2. Create a webhook endpoint pointing to
+   `https://your-domain.com/api/billing/webhook`.
+3. Subscribe it to `checkout.session.completed`,
+   `customer.subscription.created`, `customer.subscription.updated`,
+   `customer.subscription.deleted`, `invoice.paid` and
+   `invoice.payment_failed`.
+4. Copy the webhook signing secret to `STRIPE_WEBHOOK_SECRET`.
+5. Configure Stripe Customer Portal in the Stripe Dashboard.
+
+For local webhook testing:
+
+```bash
+stripe listen --forward-to localhost:3000/api/billing/webhook
+```
+
+The default monthly catalog is Basic (`99,000 VND` / `$4.99`), Plus
+(`199,000 VND` / `$8.99`) and Pro (`399,000 VND` / `$16.99`). Edit
+`public.billing_plans` to change prices or limits.
+
+Every plan supports card payment and a one-time three-day trial without a card.
+Admin accounts also see a developer-only no-card Checkout button while the
+server uses an `sk_test_` Stripe Sandbox key.
 
 Users may alternatively enter an AI key for the current browser tab. It is
 stored in `sessionStorage`, sent only to a server Route Handler, and never saved

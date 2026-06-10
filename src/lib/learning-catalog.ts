@@ -15,6 +15,13 @@ import {
 
 export const learningCatalog = [
   {
+    title: "Thi đua và bảng xếp hạng",
+    description: "Thử thách tuần và xếp hạng giữa những người học.",
+    href: "/competition",
+    keywords: ["thi đua", "bảng xếp hạng", "leaderboard", "competition"],
+    icon: Trophy,
+  },
+  {
     title: "Lộ trình tiếng Anh A1–B1",
     description: "Lộ trình cân bằng bốn kỹ năng và từ vựng.",
     href: "/roadmap",

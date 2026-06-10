@@ -2,7 +2,15 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
-const publicPaths = ["/login", "/register", "/auth", "/setup", "/about", "/privacy"];
+const publicPaths = [
+  "/login",
+  "/register",
+  "/auth",
+  "/setup",
+  "/pricing",
+  "/about",
+  "/privacy",
+];
 
 export async function updateSession(request: NextRequest) {
   if (!isSupabaseConfigured()) {

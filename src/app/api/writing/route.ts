@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getOptionalViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { hasFeatureAccess } from "@/lib/economy";
 
 const schema = z.object({
   originalText: z.string().trim().min(1).max(30_000),
@@ -13,6 +14,16 @@ const schema = z.object({
 export async function POST(request: Request) {
   const viewer = await getOptionalViewer();
   if (!viewer) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await hasFeatureAccess(viewer.id, "writing", "basic"))) {
+    return NextResponse.json(
+      {
+        error: "Sửa bài viết yêu cầu gói Basic, Plus hoặc Pro.",
+        code: "PLAN_UPGRADE_REQUIRED",
+        requiredPlan: "basic",
+      },
+      { status: 403 },
+    );
+  }
   const input = schema.parse(await request.json());
   const supabase = await createClient();
   const { data, error } = await supabase

@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useLocale } from "@/components/locale-provider";
 
 export function AccountSettings({
   viewer,
@@ -38,6 +39,7 @@ export function AccountSettings({
     aiTrainingConsent: boolean;
   };
 }) {
+  const { setLocale: setAppLocale } = useLocale();
   const [fullName, setFullName] = useState(viewer.fullName);
   const [locale, setLocale] = useState<Locale>(viewer.locale as Locale);
   const [goal, setGoal] = useState(initial.learningGoal);
@@ -63,6 +65,7 @@ export function AccountSettings({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ locale }),
     });
+    setAppLocale(locale);
     toast.success("Đã lưu hồ sơ.");
   }
 

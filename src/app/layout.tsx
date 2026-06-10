@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/app-shell";
+import { LocaleProvider } from "@/components/locale-provider";
+import { ExperienceProvider } from "@/components/experience-provider";
 import { getOptionalViewer } from "@/lib/auth";
 import "./globals.css";
 
@@ -33,13 +35,17 @@ export default async function RootLayout({
   const viewer = await getOptionalViewer();
   return (
     <html
-      lang="vi"
+      lang={viewer?.locale ?? "vi"}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         <TooltipProvider>
-          <AppShell viewer={viewer}>{children}</AppShell>
-          <Toaster richColors position="top-right" />
+          <LocaleProvider initialLocale={viewer?.locale ?? "vi"}>
+            <ExperienceProvider>
+              <AppShell viewer={viewer}>{children}</AppShell>
+              <Toaster richColors position="top-right" />
+            </ExperienceProvider>
+          </LocaleProvider>
         </TooltipProvider>
       </body>
     </html>

@@ -33,10 +33,12 @@ function Status({ state }: { state: AuthState }) {
 export function AuthForm({
   mode,
   message,
+  next,
   googleEnabled,
 }: {
   mode: "login" | "register";
   message?: string;
+  next?: string;
   googleEnabled: boolean;
 }) {
   const [loginState, loginAction, loginPending] = useActionState(
@@ -99,6 +101,7 @@ export function AuthForm({
             ) : null}
 
             <form action={signInWithGoogle}>
+              <input type="hidden" name="next" value={next ?? ""} />
               <Button
                 type="submit"
                 variant="outline"
@@ -136,30 +139,55 @@ export function AuthForm({
                   action={mode === "login" ? loginAction : registerAction}
                   className="flex flex-col gap-4 pt-4"
                 >
+                  <input type="hidden" name="next" value={next ?? ""} />
                   {mode === "register" ? (
-                    <Input name="fullName" placeholder="Họ và tên" required />
+                    <Input
+                      name="fullName"
+                      placeholder="Họ và tên"
+                      autoComplete="name"
+                      required
+                    />
                   ) : null}
-                  <Input name="email" type="email" placeholder="Email" required />
+                  <Input
+                    name="email"
+                    type="email"
+                    placeholder="Email"
+                    autoComplete="email"
+                    required
+                  />
                   <Input
                     name="password"
                     type="password"
                     placeholder="Mật khẩu (tối thiểu 8 ký tự)"
+                    autoComplete={
+                      mode === "login" ? "current-password" : "new-password"
+                    }
                     minLength={8}
                     required
                   />
                   <Status
                     state={mode === "login" ? loginState : registerState}
                   />
-                  <Button disabled={loginPending || registerPending}>
+                  <Button
+                    type="submit"
+                    disabled={loginPending || registerPending}
+                  >
                     {mode === "login" ? "Đăng nhập" : "Đăng ký"}
                   </Button>
                 </form>
               </TabsContent>
               <TabsContent value="magic">
                 <form action={magicAction} className="flex flex-col gap-4 pt-4">
-                  <Input name="email" type="email" placeholder="Email" required />
+                  <input type="hidden" name="next" value={next ?? ""} />
+                  <Input
+                    name="email"
+                    type="email"
+                    placeholder="Email"
+                    autoComplete="email"
+                    required
+                  />
                   <Status state={magicState} />
-                  <Button disabled={magicPending}>
+                  <Button type="submit" disabled={magicPending}>
                     <Mail data-icon="inline-start" />
                     Gửi magic link
                   </Button>
@@ -170,13 +198,15 @@ export function AuthForm({
             <p className="text-center text-sm text-muted-foreground">
               {mode === "login" ? "Chưa có tài khoản?" : "Đã có tài khoản?"}{" "}
               <Link
-                href={mode === "login" ? "/register" : "/login"}
+                href={`${mode === "login" ? "/register" : "/login"}${
+                  next ? `?next=${encodeURIComponent(next)}` : ""
+                }`}
                 className="font-semibold text-primary"
               >
                 {mode === "login" ? "Đăng ký" : "Đăng nhập"}
               </Link>
             </p>
-            <Button variant="ghost" render={<Link href="/setup" />}>
+            <Button nativeButton={false} variant="ghost" render={<Link href="/setup" />}>
               Hướng dẫn cấu hình hệ thống
             </Button>
           </CardContent>

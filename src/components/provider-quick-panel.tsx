@@ -11,8 +11,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useLocale } from "@/components/locale-provider";
 
 export function ProviderQuickPanel() {
+  const { t } = useLocale();
   return (
     <Card className="glass-panel">
       <CardHeader>
@@ -25,9 +27,9 @@ export function ProviderQuickPanel() {
             Auto Detect
           </Badge>
         </div>
-        <CardTitle>AI đang sử dụng</CardTitle>
+        <CardTitle>{t("provider.title")}</CardTitle>
         <CardDescription>
-          Tự nhận diện provider từ API key và tên model.
+          {t("provider.description")}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -37,7 +39,7 @@ export function ProviderQuickPanel() {
               <WandSparkles className="size-4" />
             </span>
             <div>
-              <p className="text-sm font-semibold">Chế độ tự động</p>
+              <p className="text-sm font-semibold">{t("provider.auto")}</p>
               <p className="text-xs text-muted-foreground">
                 Gemini · Groq · OpenAI · OpenRouter · Anthropic
               </p>
@@ -45,12 +47,11 @@ export function ProviderQuickPanel() {
           </div>
         </div>
         <p className="text-xs leading-5 text-muted-foreground">
-          Hỗ trợ provider có hạn mức miễn phí và trả phí. Khóa API chỉ được gửi
-          đến server khi bạn thực hiện yêu cầu.
+          {t("provider.privacy")}
         </p>
-        <Button variant="outline" render={<Link href="/settings" />}>
+        <Button nativeButton={false} variant="outline" render={<Link href="/settings" />}>
           <Settings2 data-icon="inline-start" />
-          Cấu hình model
+          {t("provider.configure")}
         </Button>
       </CardContent>
     </Card>

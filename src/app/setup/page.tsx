@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, CircleAlert, Database, KeyRound, Terminal } from "lucide-react";
+import { CheckCircle2, CircleAlert, CreditCard, Database, KeyRound, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getMissingSupabaseVariables, isSupabaseConfigured } from "@/lib/supabase/config";
@@ -26,8 +26,10 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 SUPABASE_SECRET_KEY=...`}</pre></CardContent></Card>
           <Card><CardHeader><CheckCircle2 className="text-cyan-600" /><CardTitle>3. Auth providers</CardTitle></CardHeader><CardContent className="text-sm leading-6 text-slate-600">Bật Email và Google trong Supabase Auth. Thêm callback <code>/auth/callback</code> vào redirect URLs.</CardContent></Card>
           <Card><CardHeader><Terminal className="text-cyan-600" /><CardTitle>4. Khởi động lại</CardTitle></CardHeader><CardContent><pre className="rounded-xl bg-slate-950 p-4 text-xs text-slate-100">pnpm dev</pre></CardContent></Card>
+          <Card className="md:col-span-2"><CardHeader><CreditCard className="text-cyan-600" /><CardTitle>5. Bật Stripe Billing</CardTitle></CardHeader><CardContent className="space-y-3 text-sm leading-6 text-slate-600"><p>Thêm <code>STRIPE_SECRET_KEY</code> và <code>STRIPE_WEBHOOK_SECRET</code> vào <code>.env.local</code>. Webhook production trỏ đến <code>https://your-domain.com/api/billing/webhook</code>.</p><pre className="overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-100">{`STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...`}</pre><p>Trong Stripe Customer Portal, bật cập nhật phương thức thanh toán và hủy subscription để nút quản lý thanh toán hoạt động.</p></CardContent></Card>
         </div>
-        {configured ? <Button render={<Link href="/login" />}>Đi đến đăng nhập</Button> : null}
+        {configured ? <Button nativeButton={false} render={<Link href="/login" />}>Đi đến đăng nhập</Button> : null}
       </div>
     </main>
   );

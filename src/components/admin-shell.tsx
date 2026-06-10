@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BookOpenCheck,
   Bot,
+  CreditCard,
   Database,
   LayoutDashboard,
   Menu,
@@ -29,6 +30,7 @@ const navigation = [
   { href: "/admin", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/admin/users", label: "Người dùng", icon: Users },
   { href: "/admin/content", label: "Nội dung học", icon: BookOpenCheck },
+  { href: "/admin/billing", label: "Gói và doanh thu", icon: CreditCard },
   { href: "/admin/ai", label: "AI Lab", icon: Bot },
   { href: "/admin/system", label: "Cấu hình hệ thống", icon: Settings },
 ];
@@ -55,7 +57,8 @@ function Sidebar({ viewer }: { viewer: Viewer }) {
           <span className="block text-[11px] text-slate-400">Control Center</span>
         </span>
       </Link>
-      <nav className="flex flex-col gap-1">
+      <nav className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
+        <div className="flex flex-col gap-1">
         {navigation.map((item) => {
           const active =
             item.href === "/admin"
@@ -78,9 +81,11 @@ function Sidebar({ viewer }: { viewer: Viewer }) {
             </Link>
           );
         })}
+        </div>
       </nav>
-      <div className="mt-auto flex flex-col gap-3">
+      <div className="shrink-0 flex flex-col gap-3">
         <Button
+          nativeButton={false}
           variant="outline"
           className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
           render={<Link href="/" />}

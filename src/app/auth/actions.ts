@@ -13,6 +13,14 @@ const credentialsSchema = z.object({
   password: z.string().min(8, "Mật khẩu cần ít nhất 8 ký tự."),
 });
 
+function safeNext(value: FormDataEntryValue | null) {
+  return typeof value === "string" &&
+    value.startsWith("/") &&
+    !value.startsWith("//")
+    ? value
+    : "/";
+}
+
 function ensureConfigured(): AuthState | null {
   return isSupabaseConfigured()
     ? null
@@ -34,7 +42,7 @@ export async function signInWithPassword(
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: error.message };
-  redirect("/");
+  redirect(safeNext(formData.get("next")));
 }
 
 export async function signUpWithPassword(
@@ -59,7 +67,9 @@ export async function signUpWithPassword(
     password: parsed.data.password,
     options: {
       data: { full_name: parsed.data.fullName },
-      emailRedirectTo: `${origin}/auth/callback`,
+      emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(
+        safeNext(formData.get("next")),
+      )}`,
     },
   });
   if (error) return { error: error.message };
@@ -81,13 +91,17 @@ export async function sendMagicLink(
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data.email,
-    options: { emailRedirectTo: `${origin}/auth/callback` },
+    options: {
+      emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(
+        safeNext(formData.get("next")),
+      )}`,
+    },
   });
   if (error) return { error: error.message };
   return { success: "Magic link đã được gửi. Hãy kiểm tra hộp thư." };
 }
 
-export async function signInWithGoogle() {
+export async function signInWithGoogle(formData: FormData) {
   if (!isSupabaseConfigured()) redirect("/login?message=Supabase chưa được cấu hình");
   const settingsResponse = await fetch(
     `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/settings`,
@@ -107,10 +121,13 @@ export async function signInWithGoogle() {
     );
   }
   const origin = (await headers()).get("origin") ?? "";
+  const next = safeNext(formData.get("next"));
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: `${origin}/auth/callback` },
+    options: {
+      redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
+    },
   });
   if (error) redirect(`/login?message=${encodeURIComponent(error.message)}`);
   if (data.url) redirect(data.url);
@@ -119,7 +136,7 @@ export async function signInWithGoogle() {
 export async function signOut() {
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "global" });
   }
   redirect("/login");
 }

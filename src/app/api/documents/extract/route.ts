@@ -3,6 +3,7 @@ import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 import { getOptionalViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { checkDocumentLimit } from "@/lib/billing";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,18 @@ export async function POST(request: Request) {
     const viewer = await getOptionalViewer();
     if (!viewer) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const documentUsage = await checkDocumentLimit(viewer.id);
+    if (!documentUsage.allowed) {
+      return NextResponse.json(
+        {
+          error: `Gói ${documentUsage.plan.name} cho phép tối đa ${documentUsage.limit} tài liệu. Hãy nâng cấp để tải thêm.`,
+          code: "DOCUMENT_LIMIT_EXCEEDED",
+          used: documentUsage.used,
+          limit: documentUsage.limit,
+        },
+        { status: 403 },
+      );
     }
     const formData = await request.formData();
     const file = formData.get("file");

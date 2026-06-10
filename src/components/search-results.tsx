@@ -51,7 +51,7 @@ export function SearchResults({
                   <CardDescription>{item.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button variant="outline" render={<Link href={item.href} />}>
+                  <Button nativeButton={false} variant="outline" render={<Link href={item.href} />}>
                     Mở chức năng <ArrowRight data-icon="inline-end" />
                   </Button>
                 </CardContent>

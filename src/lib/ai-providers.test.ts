@@ -5,6 +5,7 @@ describe("detectProvider", () => {
   it.each([
     ["gsk_example", "", "", "groq"],
     ["AIza-example", "", "", "gemini"],
+    ["AQ.example", "", "", "gemini"],
     ["sk-ant-example", "", "", "anthropic"],
     ["sk-or-v1-example", "", "", "openrouter"],
     ["sk-proj-example", "", "", "openai"],

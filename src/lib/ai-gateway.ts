@@ -18,6 +18,17 @@ type GatewayRequest = {
   messages: ChatMessage[];
 };
 
+export class AiGatewayError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly retryable = false,
+  ) {
+    super(message);
+    this.name = "AiGatewayError";
+  }
+}
+
 const envKeys: Partial<Record<ProviderDefinition["id"], string | undefined>> = {
   gemini: process.env.GEMINI_API_KEY,
   groq: process.env.GROQ_API_KEY,
@@ -50,6 +61,39 @@ function extractOpenAIText(payload: unknown): string {
   return response.choices?.[0]?.message?.content?.trim() ?? "";
 }
 
+function providerError(
+  payload: unknown,
+  status: number,
+  providerName: string,
+) {
+  const response = payload as {
+    error?: { message?: string };
+    message?: string;
+  };
+  const detail =
+    response.error?.message ??
+    response.message ??
+    `${providerName} trả về HTTP ${status}`;
+  const retryable = [429, 500, 502, 503, 504].includes(status);
+  const prefix =
+    status === 503
+      ? "Dịch vụ đang quá tải. Lingora đã thử lại và chuyển model dự phòng."
+      : status === 429
+        ? "Đã vượt hạn mức API. Hãy chờ quota được làm mới hoặc bật billing."
+        : status === 401 || status === 403
+          ? "API key không hợp lệ hoặc chưa có quyền sử dụng model."
+          : "";
+  return new AiGatewayError(
+    prefix ? `${prefix} ${detail}` : detail,
+    status,
+    retryable,
+  );
+}
+
+function sleep(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 async function openAICompatibleChat(
   provider: ProviderDefinition,
   apiKey: string,
@@ -67,29 +111,53 @@ async function openAICompatibleChat(
     headers["X-Title"] = "Lingora";
   }
 
-  const response = await fetch(
-    `${normalizeBaseUrl(baseUrl)}/chat/completions`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.5,
-        max_tokens: 1200,
-      }),
-      signal: AbortSignal.timeout(60_000),
-    },
-  );
-
-  const payload = await response.json();
-  if (!response.ok) {
-    const error = payload as { error?: { message?: string }; message?: string };
-    throw new Error(
-      error.error?.message ?? error.message ?? `API trả về HTTP ${response.status}`,
-    );
+  let lastError: AiGatewayError | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch(
+        `${normalizeBaseUrl(baseUrl)}/chat/completions`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.5,
+            max_tokens: 1200,
+          }),
+          signal: AbortSignal.timeout(60_000),
+        },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = providerError(payload, response.status, provider.name);
+        if (!error.retryable || attempt === 2) throw error;
+        lastError = error;
+        await sleep(500 * 2 ** attempt + Math.floor(Math.random() * 250));
+        continue;
+      }
+      const text = extractOpenAIText(payload);
+      if (!text) {
+        throw new AiGatewayError(
+          `${provider.name} không trả về nội dung.`,
+          502,
+          true,
+        );
+      }
+      return text;
+    } catch (error) {
+      if (error instanceof AiGatewayError) throw error;
+      if (attempt === 2) {
+        throw new AiGatewayError(
+          error instanceof Error ? error.message : "Không thể kết nối model.",
+          502,
+          true,
+        );
+      }
+      await sleep(500 * 2 ** attempt);
+    }
   }
-  return extractOpenAIText(payload);
+  throw lastError ?? new AiGatewayError("Không thể kết nối model.", 502, true);
 }
 
 async function anthropicChat(
@@ -126,7 +194,7 @@ async function anthropicChat(
     error?: { message?: string };
   };
   if (!response.ok) {
-    throw new Error(payload.error?.message ?? `API trả về HTTP ${response.status}`);
+    throw providerError(payload, response.status, "Anthropic");
   }
   return (
     payload.content
@@ -165,17 +233,46 @@ export async function runChat(request: GatewayRequest) {
   if (!model) throw new Error("Vui lòng nhập tên model.");
   if (!baseUrl) throw new Error("Vui lòng nhập Base URL.");
 
-  const text =
-    detected === "anthropic"
-      ? await anthropicChat(apiKey, model, request.messages)
-      : await openAICompatibleChat(
+  let resolvedModel = model;
+  let text: string;
+  if (detected === "anthropic") {
+    text = await anthropicChat(apiKey, model, request.messages);
+  } else if (detected === "gemini") {
+    const candidates = [
+      model,
+      "gemini-3.5-flash",
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
+    ].filter((item, index, list) => list.indexOf(item) === index);
+    let lastError: unknown;
+    text = "";
+    for (const candidate of candidates) {
+      try {
+        text = await openAICompatibleChat(
           provider,
           apiKey,
-          model,
+          candidate,
           baseUrl,
           request.messages,
         );
+        resolvedModel = candidate;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (!(error instanceof AiGatewayError) || !error.retryable) throw error;
+      }
+    }
+    if (!text) throw lastError;
+  } else {
+    text = await openAICompatibleChat(
+      provider,
+      apiKey,
+      model,
+      baseUrl,
+      request.messages,
+    );
+  }
 
   if (!text) throw new Error("Model không trả về nội dung.");
-  return { text, provider: detected, model };
+  return { text, provider: detected, model: resolvedModel };
 }

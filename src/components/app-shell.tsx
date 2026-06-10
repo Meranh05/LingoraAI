@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
   Blocks,
@@ -9,6 +9,8 @@ import {
   Bot,
   BrainCircuit,
   ChevronRight,
+  Crown,
+  Coins,
   FileText,
   GraduationCap,
   Headphones,
@@ -18,10 +20,13 @@ import {
   Menu,
   MessageCircleQuestion,
   Mic2,
+  Volume2,
+  VolumeX,
   PenLine,
   Settings,
   ShieldCheck,
   Sparkles,
+  Trophy,
   Waypoints,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -45,14 +50,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  localeNames,
-  navigationLabels,
-  type Locale,
-} from "@/lib/i18n";
-import { useState } from "react";
+import { localeNames, navigationLabels, type Locale } from "@/lib/i18n";
 import { AdminShell } from "@/components/admin-shell";
 import { GlobalSearch } from "@/components/global-search";
+import { useLocale } from "@/components/locale-provider";
+import { useExperience } from "@/components/experience-provider";
 
 const navigation = [
   { key: "dashboard", href: "/", icon: LayoutDashboard },
@@ -69,9 +71,12 @@ const navigation = [
   { key: "translation", href: "/translation", icon: Languages },
   { key: "quiz", href: "/quiz", icon: MessageCircleQuestion },
   { key: "progress", href: "/progress", icon: BarChart3 },
+  { key: "competition", href: "/competition", icon: Trophy },
+  { key: "store", href: "/store", icon: Coins },
+  { key: "pricing", href: "/pricing", icon: Crown },
 ];
 
-function Brand() {
+function Brand({ tagline }: { tagline: string }) {
   return (
     <Link href="/" className="flex items-center gap-3 px-2">
       <span className="flex size-10 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-sky-200">
@@ -80,7 +85,7 @@ function Brand() {
       <span>
         <span className="block text-xl font-bold tracking-tight">Lingora</span>
         <span className="block text-[11px] font-medium text-muted-foreground">
-          English with AI
+          {tagline}
         </span>
       </span>
     </Link>
@@ -99,7 +104,8 @@ function Navigation({
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-col gap-1">
+    <nav className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
+      <div className="flex flex-col gap-1">
       {[...navigation, ...(isAdmin ? [{ key: "admin", href: "/admin", icon: ShieldCheck }] : [])].map((item) => {
         const active =
           item.href === "/"
@@ -126,6 +132,7 @@ function Navigation({
           </Link>
         );
       })}
+      </div>
     </nav>
   );
 }
@@ -148,15 +155,24 @@ function SidebarContent({
   locale: Locale;
   onNavigate?: () => void;
 }) {
+  const { t } = useLocale();
   return (
-    <div className="flex h-full flex-col gap-6">
-      <Brand />
+    <div className="flex h-full min-h-0 flex-col gap-5">
+      <Brand tagline={t("shell.tagline")} />
       <Navigation
         onNavigate={onNavigate}
         locale={locale}
         isAdmin={false}
       />
-      <div className="mt-auto flex flex-col gap-2">
+      <div className="shrink-0 flex flex-col gap-2">
+        <Link
+          href="/billing"
+          onClick={onNavigate}
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+        >
+          <Crown className="size-[18px]" />
+          {navigationLabels[locale].billing}
+        </Link>
         <Link
           href="/settings"
           onClick={onNavigate}
@@ -184,7 +200,7 @@ function SidebarContent({
             </Avatar>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">
-                {viewer?.fullName ?? "Khách"}
+                {viewer?.fullName ?? t("shell.guest")}
               </p>
               <p className="truncate text-xs text-muted-foreground">
                 {viewer?.role === "admin" ? "Administrator" : viewer?.level ?? "Guest"}
@@ -205,14 +221,15 @@ export function AppShell({
   viewer: Viewer | null;
 }) {
   const pathname = usePathname();
-  const [locale, setLocale] = useState<Locale>(
-    (viewer?.locale as Locale) || "vi",
-  );
+  const router = useRouter();
+  const { locale, setLocale, t } = useLocale();
+  const { soundEnabled, setSoundEnabled, play } = useExperience();
   const authPage =
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
     pathname.startsWith("/auth/") ||
-    pathname.startsWith("/setup");
+    pathname.startsWith("/setup") ||
+    pathname.startsWith("/pricing");
 
   if (authPage) return children;
   if (pathname.startsWith("/admin") && viewer?.role === "admin") {
@@ -221,11 +238,21 @@ export function AppShell({
 
   async function changeLocale(next: Locale) {
     setLocale(next);
-    await fetch("/api/locale", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ locale: next }),
-    });
+    await Promise.all([
+      fetch("/api/locale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale: next }),
+      }),
+      viewer
+        ? fetch("/api/profile", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ locale: next }),
+          })
+        : Promise.resolve(),
+    ]);
+    router.refresh();
   }
 
   return (
@@ -243,11 +270,11 @@ export function AppShell({
               }
             >
               <Menu />
-              <span className="sr-only">Mở menu</span>
+              <span className="sr-only">{t("shell.openMenu")}</span>
             </SheetTrigger>
             <SheetContent side="left" className="w-[285px] p-5">
               <SheetHeader className="sr-only">
-                <SheetTitle>Điều hướng Lingora</SheetTitle>
+                <SheetTitle>{t("shell.navigation")}</SheetTitle>
               </SheetHeader>
               <SidebarContent viewer={viewer} locale={locale} />
             </SheetContent>
@@ -255,13 +282,25 @@ export function AppShell({
 
           <GlobalSearch />
           <div className="ml-auto flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                const next = !soundEnabled;
+                setSoundEnabled(next);
+                if (next) window.setTimeout(() => play("success"), 0);
+              }}
+              aria-label={soundEnabled ? "Tắt âm thanh" : "Bật âm thanh"}
+            >
+              {soundEnabled ? <Volume2 /> : <VolumeX />}
+            </Button>
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold">
-                {locale === "en" ? "Welcome" : "Xin chào"},{" "}
+                {t("shell.welcome")},{" "}
                 {viewer?.fullName.split(" ").at(-1) ?? "Guest"}
               </p>
               <p className="text-xs text-muted-foreground">
-                Dữ liệu học tập cá nhân
+                {t("shell.privateData")}
               </p>
             </div>
             <DropdownMenu>
@@ -275,12 +314,14 @@ export function AppShell({
                 </Avatar>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>
-                  <span className="block truncate">{viewer?.fullName ?? "Guest"}</span>
-                  <span className="block truncate text-xs font-normal text-muted-foreground">
-                    {viewer?.email}
-                  </span>
-                </DropdownMenuLabel>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>
+                    <span className="block truncate">{viewer?.fullName ?? "Guest"}</span>
+                    <span className="block truncate text-xs font-normal text-muted-foreground">
+                      {viewer?.email}
+                    </span>
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   {(Object.keys(localeNames) as Locale[]).map((item) => (
@@ -296,9 +337,12 @@ export function AppShell({
                 <DropdownMenuSeparator />
                 {viewer ? (
                   <form action={signOut}>
-                    <DropdownMenuItem render={<button type="submit" className="w-full" />}>
+                    <DropdownMenuItem
+                      nativeButton
+                      render={<button type="submit" className="w-full" />}
+                    >
                       <LogOut />
-                      Đăng xuất
+                      {t("shell.logout")}
                     </DropdownMenuItem>
                   </form>
                 ) : null}

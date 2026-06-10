@@ -14,8 +14,8 @@ export default function NotFound() {
             Đường dẫn không tồn tại hoặc đã được chuyển sang khu chức năng mới.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Button render={<Link href="/" />}><ArrowLeft /> Về tổng quan</Button>
-            <Button variant="outline" render={<Link href="/search" />}><Search /> Tìm chức năng</Button>
+            <Button nativeButton={false} render={<Link href="/" />}><ArrowLeft /> Về tổng quan</Button>
+            <Button nativeButton={false} variant="outline" render={<Link href="/search" />}><Search /> Tìm chức năng</Button>
           </div>
         </CardContent>
       </Card>

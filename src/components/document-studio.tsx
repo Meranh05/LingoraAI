@@ -23,6 +23,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { readClientAiConfig } from "@/lib/client-ai-config";
+import { PageHero } from "@/components/page-hero";
+import { useExperience } from "@/components/experience-provider";
 
 type AiResult = {
   summary: string;
@@ -49,6 +51,7 @@ export function DocumentStudio({
   const [text, setText] = useState("");
   const [documentId, setDocumentId] = useState("");
   const [loading, setLoading] = useState(false);
+  const { play } = useExperience();
   const [result, setResult] = useState<AiResult>({
     summary: "",
     questions: "",
@@ -75,8 +78,10 @@ export function DocumentStudio({
       setFileName(file.name);
       setText(data.text ?? "");
       setDocumentId(data.document?.id ?? "");
+      play("success");
       toast.success("Đã tải lên và lưu tài liệu.");
     } catch (error) {
+      play("error");
       toast.error(error instanceof Error ? error.message : "Không thể đọc file.");
     } finally {
       setLoading(false);
@@ -138,7 +143,9 @@ export function DocumentStudio({
         if (!saveResponse.ok) throw new Error("Đã phân tích nhưng không thể lưu kết quả.");
       }
       toast.success("Đã phân tích và lưu kết quả.");
+      play("complete");
     } catch (error) {
+      play("error");
       toast.error(error instanceof Error ? error.message : "Không thể phân tích.");
     } finally {
       setLoading(false);
@@ -147,14 +154,15 @@ export function DocumentStudio({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Document Studio</h1>
-        <p className="mt-2 text-muted-foreground">
-          Đọc PDF, DOCX, TXT; tóm tắt, tạo câu hỏi và trích từ vựng.
-        </p>
-      </div>
+      <PageHero
+        icon={FileText}
+        title="Document Studio"
+        description="Đọc PDF, DOCX, TXT; tóm tắt song ngữ, tạo câu hỏi và trích từ vựng bằng AI."
+        eyebrow={`${initialDocuments.length} tài liệu riêng tư`}
+        tone="indigo"
+      />
       <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-        <Card className="glass-panel">
+        <Card className="glass-panel interactive-lift">
           <CardHeader>
             <CardTitle>Nội dung tài liệu</CardTitle>
             <CardDescription>{fileName || "Chưa chọn tài liệu"}</CardDescription>
@@ -178,7 +186,7 @@ export function DocumentStudio({
             />
           </CardContent>
         </Card>
-        <Card className="glass-panel">
+        <Card className="glass-panel interactive-lift">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>AI Learning Tools</CardTitle>
@@ -218,7 +226,7 @@ export function DocumentStudio({
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {initialDocuments.length ? initialDocuments.map((document) => (
-            <div key={document.id} className="rounded-2xl border bg-white/70 p-4">
+            <div key={document.id} className="interactive-lift rounded-2xl border bg-white/75 p-4">
               <p className="truncate font-semibold">{document.file_name}</p>
               <div className="mt-2 flex gap-2">
                 <Badge variant="outline">{document.file_type.toUpperCase()}</Badge>

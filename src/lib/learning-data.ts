@@ -34,6 +34,7 @@ export async function getDashboardData(viewer: Viewer) {
     documentsResult,
     eventsResult,
     enrollmentResult,
+    walletResult,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -70,6 +71,11 @@ export async function getDashboardData(viewer: Viewer) {
       .eq("status", "active")
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("user_wallets")
+      .select("xp,tokens")
+      .eq("user_id", viewer.id)
+      .maybeSingle(),
   ]);
 
   [
@@ -79,6 +85,7 @@ export async function getDashboardData(viewer: Viewer) {
     ["Tài liệu", documentsResult.error],
     ["Sự kiện học", eventsResult.error],
     ["Lộ trình", enrollmentResult.error],
+    ["Ví XP/token", walletResult.error],
   ].forEach(([context, error]) =>
     assertNoError(error as { message: string } | null, context as string),
   );
@@ -129,6 +136,7 @@ export async function getDashboardData(viewer: Viewer) {
           progress: Number(enrollment.progress_percent ?? 0),
         }
       : null,
+    wallet: walletResult.data ?? { xp: 0, tokens: 0 },
   };
 }
 
@@ -226,5 +234,52 @@ export async function getProfileSettings(viewer: Viewer) {
     learningGoal: data?.learning_goal ?? "",
     dailyGoalMinutes: data?.daily_goal_minutes ?? 20,
     aiTrainingConsent: Boolean(data?.ai_training_consent),
+  };
+}
+
+export async function getTutorData(viewer: Viewer) {
+  const supabase = await createClient();
+  const [{ data: documents, error: documentsError }, { data: session, error: sessionError }] =
+    await Promise.all([
+      supabase
+        .from("documents")
+        .select("id,file_name,status")
+        .eq("user_id", viewer.id)
+        .eq("status", "ready")
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("chat_sessions")
+        .select("id,document_id")
+        .eq("user_id", viewer.id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+  assertNoError(documentsError, "Tài liệu gia sư");
+  assertNoError(sessionError, "Phiên chat");
+
+  let messages: Array<{ role: "user" | "assistant"; content: string }> = [];
+  if (session) {
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .select("role,content")
+      .eq("session_id", session.id)
+      .eq("user_id", viewer.id)
+      .in("role", ["user", "assistant"])
+      .order("created_at")
+      .limit(30);
+    assertNoError(error, "Lịch sử chat");
+    messages = (data ?? []).map((message) => ({
+      role: message.role as "user" | "assistant",
+      content: message.content,
+    }));
+  }
+
+  return {
+    documents: documents ?? [],
+    sessionId: session?.id ?? null,
+    documentId: session?.document_id ?? null,
+    messages,
   };
 }

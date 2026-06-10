@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { searchLearningCatalog } from "@/lib/learning-catalog";
+import { useLocale } from "@/components/locale-provider";
 
 export function GlobalSearch() {
   const router = useRouter();
+  const { t } = useLocale();
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const suggestions = useMemo(
@@ -31,7 +33,7 @@ export function GlobalSearch() {
         onFocus={() => setFocused(true)}
         onBlur={() => window.setTimeout(() => setFocused(false), 120)}
         className="h-9 border-white/80 bg-white/65 pl-9"
-        placeholder="Tìm tài liệu, bài học, kỹ năng..."
+        placeholder={t("shell.search")}
       />
       {focused && query.trim() ? (
         <div className="absolute inset-x-0 top-11 z-50 overflow-hidden rounded-2xl border bg-white p-2 shadow-xl">
@@ -56,7 +58,7 @@ export function GlobalSearch() {
             })
           ) : (
             <p className="p-3 text-sm text-muted-foreground">
-              Không tìm thấy. Nhấn Enter để mở trang tìm kiếm.
+              {t("shell.noSearch")}
             </p>
           )}
         </div>

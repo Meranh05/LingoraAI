@@ -26,9 +26,14 @@ export const providers: ProviderDefinition[] = [
     name: "Google Gemini",
     billing: "mixed",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-    defaultModel: "gemini-2.5-flash",
-    models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
-    keyPrefixes: ["AIza"],
+    defaultModel: "gemini-3.5-flash",
+    models: [
+      "gemini-3.5-flash",
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
+      "gemini-2.5-pro",
+    ],
+    keyPrefixes: ["AIza", "AQ."],
   },
   {
     id: "groq",
