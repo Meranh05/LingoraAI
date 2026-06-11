@@ -13,7 +13,7 @@
 
 **[English](#english) · [Tiếng Việt](#tiếng-việt) · [Setup](#quick-start) · [Architecture](#architecture)**
 
-![Lingora dashboard](docs/screenshots/dashboard.png)
+![Lingora dashboard](docs/screenshots/dashboard.png) 
 
 </div>
 
