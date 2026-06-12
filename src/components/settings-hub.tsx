@@ -34,16 +34,16 @@ export function SettingsHub({
     <div className="flex flex-col gap-6">
       <Card className="glass-panel overflow-hidden">
         <CardHeader>
-          <CardTitle>Trải nghiệm ứng dụng</CardTitle>
+          <CardTitle>{t("settings.experience")}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           <label className="flex items-center justify-between gap-4 rounded-2xl border bg-white/70 p-4">
             <span className="flex items-center gap-3">
               <Volume2 className="size-5 text-primary" />
               <span>
-                <span className="block text-sm font-semibold">Hiệu ứng âm thanh</span>
+                <span className="block text-sm font-semibold">{t("settings.sound")}</span>
                 <span className="text-xs text-muted-foreground">
-                  Phản hồi khi hoàn thành, đúng hoặc có lỗi.
+                  {t("settings.soundDescription")}
                 </span>
               </span>
             </span>
@@ -59,9 +59,9 @@ export function SettingsHub({
             <span className="flex items-center gap-3">
               <Sparkles className="size-5 text-primary" />
               <span>
-                <span className="block text-sm font-semibold">Chuyển động giao diện</span>
+                <span className="block text-sm font-semibold">{t("settings.motion")}</span>
                 <span className="text-xs text-muted-foreground">
-                  Animation nhẹ khi mở trang và tương tác.
+                  {t("settings.motionDescription")}
                 </span>
               </span>
             </span>

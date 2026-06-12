@@ -1,25 +1,47 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
-import { MessageCircle, X } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowUpRight,
+  Loader2,
+  MessageCircle,
+  Send,
+  Settings2,
+  X,
+} from "lucide-react";
+import { useLocale } from "@/components/locale-provider";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { readClientAiConfig } from "@/lib/client-ai-config";
 import type { MascotMood } from "@/lib/gamification";
 import { cn } from "@/lib/utils";
 
+type Message = { role: "user" | "assistant"; content: string };
+
+const openMascotChatEvent = "lingora:open-mascot-chat";
+
 const messages: Array<[RegExp, MascotMood, string]> = [
-  [/^\/$/, "wave", "Mình đã chuẩn bị một hành trình mới cho hôm nay!"],
-  [/ai-tutor/, "think", "Cứ hỏi tự nhiên nhé, mình sẽ giải thích theo level của bạn."],
-  [/roadmap/, "champion", "Mỗi checkpoint mở ra một kỹ năng mới."],
-  [/reading|documents/, "read", "Đọc từng đoạn ngắn rồi tóm tắt bằng một câu nhé."],
-  [/listening/, "listen", "Nghe ý chính trước, sau đó mới tập trung vào từng từ."],
-  [/flashcards|vocabulary/, "cards", "Đổi thứ tự ôn tập sẽ giúp trí nhớ bền hơn."],
-  [/quiz|practice/, "encourage", "Sai cũng được. Combo học tập đến từ việc thử lại!"],
-  [/competition/, "champion", "Giữ nhịp đều quan trọng hơn học dồn một ngày."],
-  [/writing/, "write", "Viết ý chính trước, mình sẽ giúp bạn làm câu tự nhiên hơn."],
-  [/speaking/, "speak", "Nói chậm và rõ trước, tốc độ sẽ đến sau."],
+  [/^\/$/, "wave", "mascot.home"],
+  [/ai-tutor/, "think", "mascot.tutor"],
+  [/roadmap/, "champion", "mascot.roadmap"],
+  [/reading|documents/, "read", "mascot.read"],
+  [/listening/, "listen", "mascot.listen"],
+  [/flashcards|vocabulary/, "cards", "mascot.cards"],
+  [/quiz|practice/, "encourage", "mascot.practice"],
+  [/competition/, "champion", "mascot.competition"],
+  [/writing/, "write", "mascot.write"],
+  [/speaking/, "speak", "mascot.speak"],
 ];
 
-export function MascotSprite({ mood, className }: { mood: MascotMood; className?: string }) {
+export function MascotSprite({
+  mood,
+  className,
+}: {
+  mood: MascotMood;
+  className?: string;
+}) {
   return (
     <span
       role="img"
@@ -30,31 +52,241 @@ export function MascotSprite({ mood, className }: { mood: MascotMood; className?
   );
 }
 
+export function openMascotChat() {
+  window.dispatchEvent(new Event(openMascotChatEvent));
+}
+
 export function MascotCompanion() {
   const pathname = usePathname();
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
-  const [hidden, setHidden] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [sessionId, setSessionId] = useState<string>();
+  const messagesRef = useRef<HTMLDivElement>(null);
   const state = useMemo(
-    () => messages.find(([pattern]) => pattern.test(pathname)) ?? [/.*/, "idle", "Bạn đang tiến bộ từng bước cùng Lingora."],
+    () =>
+      messages.find(([pattern]) => pattern.test(pathname)) ?? [
+        /.*/,
+        "idle",
+        "mascot.default",
+      ],
     [pathname],
   );
-  if (hidden || pathname.startsWith("/admin")) return null;
+
+  useEffect(() => {
+    const showChat = () => setOpen(true);
+    window.addEventListener(openMascotChatEvent, showChat);
+    return () => window.removeEventListener(openMascotChatEvent, showChat);
+  }, []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const container = messagesRef.current;
+      if (container) container.scrollTop = container.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [chatMessages, loading, error]);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const content = input.trim();
+    if (!content || loading) return;
+
+    const nextMessages = [
+      ...chatMessages,
+      { role: "user" as const, content },
+    ];
+    setChatMessages(nextMessages);
+    setInput("");
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...readClientAiConfig(),
+          sessionId,
+          documentId: null,
+          messages: [
+            { role: "system", content: t("tutor.clientInstruction") },
+            ...nextMessages,
+          ],
+        }),
+      });
+      const data = (await response.json()) as {
+        text?: string;
+        error?: string;
+        sessionId?: string;
+      };
+      if (!response.ok) {
+        throw new Error(data.error ?? t("mascot.chatError"));
+      }
+      setSessionId(data.sessionId);
+      setChatMessages((current) => [
+        ...current,
+        { role: "assistant", content: data.text ?? "" },
+      ]);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : t("mascot.chatError"),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (pathname.startsWith("/admin") || pathname.startsWith("/learn/")) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 flex items-end gap-2">
+    <div className="fixed bottom-3 right-3 z-40 flex flex-col items-end gap-3 sm:bottom-5 sm:right-5">
       {open ? (
-        <div className="relative mb-10 max-w-56 rounded-2xl border border-sky-100 bg-white p-4 text-sm leading-5 text-slate-700 shadow-xl shadow-sky-200/50 md:mb-12 md:max-w-64">
-          <button type="button" onClick={() => setHidden(true)} className="absolute right-2 top-2 rounded-full p-1 text-slate-400 hover:bg-slate-100" aria-label="Ẩn Lumo">
-            <X className="size-3.5" />
-          </button>
-          <strong className="mb-1 block text-sky-700">Lumo gợi ý</strong>
-          {state[2] as string}
-        </div>
+        <section
+          aria-label={t("mascot.chatTitle")}
+          className="flex h-[min(520px,calc(100dvh-7rem))] w-[min(380px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl border border-sky-100 bg-white/95 shadow-2xl shadow-sky-300/40 backdrop-blur-xl"
+        >
+          <header className="flex items-center gap-3 border-b border-sky-100 bg-gradient-to-r from-sky-50 to-indigo-50 px-4 py-3">
+            <span className="relative size-12 shrink-0 rounded-2xl bg-white shadow-sm">
+              <MascotSprite
+                mood={state[1] as MascotMood}
+                className="absolute inset-0 size-full"
+              />
+            </span>
+            <div className="min-w-0 flex-1">
+              <strong className="block text-sm text-sky-900">
+                {t("mascot.chatTitle")}
+              </strong>
+              <span className="block truncate text-xs text-sky-700">
+                {t("mascot.chatSubtitle")}
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setOpen(false)}
+            >
+              <X />
+              <span className="sr-only">{t("mascot.closeChat")}</span>
+            </Button>
+          </header>
+
+          <div
+            ref={messagesRef}
+            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
+          >
+            <div className="flex items-end gap-2">
+              <MascotSprite
+                mood={state[1] as MascotMood}
+                className="size-9"
+              />
+              <p className="max-w-[82%] rounded-2xl rounded-bl-md border border-sky-100 bg-sky-50 px-3 py-2 text-sm leading-5 text-slate-700">
+                {chatMessages.length
+                  ? t("mascot.welcomeBack")
+                  : t(state[2] as string)}
+              </p>
+            </div>
+            {chatMessages.map((message, index) => (
+              <div
+                key={`${message.role}-${index}`}
+                className={cn(
+                  "flex items-end gap-2",
+                  message.role === "user" && "justify-end",
+                )}
+              >
+                {message.role === "assistant" ? (
+                  <MascotSprite mood="think" className="size-9" />
+                ) : null}
+                <p
+                  className={cn(
+                    "max-w-[82%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-5",
+                    message.role === "user"
+                      ? "rounded-br-md bg-primary text-primary-foreground"
+                      : "rounded-bl-md border border-sky-100 bg-sky-50 text-slate-700",
+                  )}
+                >
+                  {message.content}
+                </p>
+              </div>
+            ))}
+            {loading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <MascotSprite mood="think" className="size-9" />
+                <Loader2 className="size-3.5 animate-spin" />
+                {t("tutor.thinking")}
+              </div>
+            ) : null}
+            {error ? (
+              <p className="rounded-2xl border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
+                {error}
+              </p>
+            ) : null}
+          </div>
+
+          <form onSubmit={submit} className="border-t border-sky-100 bg-white p-3">
+            <div className="flex items-end gap-2">
+              <Textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                placeholder={t("mascot.chatPlaceholder")}
+                className="max-h-28 min-h-11 resize-none bg-sky-50/60"
+              />
+              <Button
+                type="submit"
+                size="icon"
+                disabled={loading || !input.trim()}
+              >
+                <Send />
+                <span className="sr-only">{t("common.send")}</span>
+              </Button>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <Link
+                href="/settings"
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Settings2 className="size-3.5" />
+                {t("common.openSettings")}
+              </Link>
+              <Link
+                href="/ai-tutor"
+                className="flex items-center gap-1 text-xs font-medium text-sky-700 hover:text-sky-900"
+              >
+                {t("mascot.fullChat")}
+                <ArrowUpRight className="size-3.5" />
+              </Link>
+            </div>
+          </form>
+        </section>
       ) : null}
-      <button type="button" onClick={() => setOpen((value) => !value)} className="group relative size-16 rounded-full bg-gradient-to-br from-sky-100 to-indigo-100 shadow-xl shadow-sky-300/40 transition hover:-translate-y-1 md:size-20" aria-label="Mở trợ lý Lumo">
-        <MascotSprite mood={state[1] as MascotMood} className="absolute inset-0 size-full" />
+
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="group relative size-16 rounded-full bg-gradient-to-br from-sky-100 to-indigo-100 shadow-xl shadow-sky-300/40 transition hover:-translate-y-1 md:size-20"
+        aria-label={open ? t("mascot.closeChat") : t("mascot.openChat")}
+        aria-expanded={open}
+      >
+        <MascotSprite
+          mood={state[1] as MascotMood}
+          className="absolute inset-0 size-full"
+        />
         <span className="absolute -left-1 top-0 flex size-6 items-center justify-center rounded-full bg-white text-sky-600 shadow">
-          <MessageCircle className="size-3.5" />
+          {open ? (
+            <X className="size-3.5" />
+          ) : (
+            <MessageCircle className="size-3.5" />
+          )}
         </span>
       </button>
     </div>

@@ -125,9 +125,9 @@ export function CompetitionCenter({ data }: { data: CompetitionData }) {
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label="Mùa giải" value={data.seasonCode || "Hiện tại"} />
-        <Stat label="Thứ hạng của bạn" value={data.viewerRank ? `#${data.viewerRank}` : "Chưa xếp hạng"} />
-        <Stat label="Cơ chế điểm" value="Đúng + nhanh + combo" />
+        <Stat label={t("competition.season")} value={data.seasonCode || t("competition.season")} />
+        <Stat label={t("competition.yourRank")} value={data.viewerRank ? `#${data.viewerRank}` : t("competition.unranked")} />
+        <Stat label={t("competition.scoring")} value={t("competition.scoringValue")} />
       </div>
 
       <Tabs defaultValue="leaderboard">
@@ -191,7 +191,7 @@ export function CompetitionCenter({ data }: { data: CompetitionData }) {
                 variant={challengeFilter === filter ? "default" : "outline"}
                 onClick={() => setChallengeFilter(filter)}
               >
-                {filter === "all" ? "Tất cả" : filter}
+                {filter === "all" ? t("competition.all") : filter}
                 <Badge variant="secondary">
                   {filter === "all"
                     ? data.challenges.length
@@ -248,15 +248,15 @@ export function CompetitionCenter({ data }: { data: CompetitionData }) {
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {challenge.questionCount} câu trong pool · yêu cầu {challenge.minScore}+ điểm
+                    {t("competition.pool", { count: challenge.questionCount, score: challenge.minScore })}
                   </p>
                   {challenge.joined && !challenge.completed ? (
                     <div className="grid grid-cols-[1fr_auto] gap-2">
                       <Button nativeButton={false} render={<Link href={`/competition/${challenge.id}`} />}>
-                        <Sparkles /> Vào thi đấu
+                        <Sparkles /> {t("competition.enter")}
                       </Button>
                       <Button variant="outline" onClick={() => action("leave_challenge", challenge.id)} disabled={loading === challenge.id}>
-                        Rời
+                        {t("competition.leave")}
                       </Button>
                     </div>
                   ) : (

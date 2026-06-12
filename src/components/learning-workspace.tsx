@@ -4,11 +4,14 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowRight,
   BarChart3,
   BookOpen,
   BrainCircuit,
   CheckCircle2,
+  Clock3,
   Headphones,
+  Heart,
   Languages,
   Loader2,
   Mic2,
@@ -19,6 +22,8 @@ import {
   Volume2,
   Flame,
   Target,
+  Trophy,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { readClientAiConfig } from "@/lib/client-ai-config";
@@ -107,10 +112,15 @@ function promptText(prompt: Record<string, string>, locale: string) {
   return prompt[locale] || prompt.en || prompt.vi || Object.values(prompt)[0] || "";
 }
 
+function nowMs() {
+  return Date.now();
+}
+
 export function LearningWorkspace({
   kind,
   data,
   challenge,
+  lesson,
 }: {
   kind: keyof typeof definitions;
   data: WorkspaceData;
@@ -122,6 +132,23 @@ export function LearningWorkspace({
     target: number;
     minScore: number;
     progress: number;
+    completed: boolean;
+  };
+  lesson?: {
+    id: string;
+    position: number;
+    title: string;
+    description: string;
+    skill: string;
+    level: string;
+    estimatedMinutes: number;
+    unlockMastery: number;
+    mascot: string;
+    mastery: number;
+    bestScore: number;
+    attempts: number;
+    passedQuestions: number;
+    totalQuestions: number;
     completed: boolean;
   };
 }) {
@@ -137,11 +164,22 @@ export function LearningWorkspace({
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [score, setScore] = useState<number | null>(null);
   const [feedback, setFeedback] = useState("");
+  const [correctAnswer, setCorrectAnswer] = useState("");
   const [rewards, setRewards] = useState({ xp: 0, tokens: 0 });
   const [rewardEligible, setRewardEligible] = useState(true);
-  const [startedAt, setStartedAt] = useState(() => Date.now());
+  const [startedAt, setStartedAt] = useState(nowMs);
   const [cardIndex, setCardIndex] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(0);
+  const [hearts, setHearts] = useState(5);
+  const [combo, setCombo] = useState(0);
+  const [sessionCorrect, setSessionCorrect] = useState(0);
+  const [sessionXp, setSessionXp] = useState(0);
+  const [sessionTokens, setSessionTokens] = useState(0);
+  const [sessionAnswered, setSessionAnswered] = useState(0);
+  const [sessionComplete, setSessionComplete] = useState(false);
+  const [sessionStartedAt, setSessionStartedAt] = useState(nowMs);
+  const [sessionElapsedMinutes, setSessionElapsedMinutes] = useState(1);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [showBack, setShowBack] = useState(false);
   const [microphoneStatus, setMicrophoneStatus] = useState<
     "idle" | "requesting" | "listening" | "granted" | "denied" | "unsupported"
@@ -161,7 +199,14 @@ export function LearningWorkspace({
       ),
     [challenge, data.questions, kind, skill],
   );
-  const question = questions[questionIndex % Math.max(questions.length, 1)];
+  const [questionQueue, setQuestionQueue] = useState(() =>
+    questions.map((item) => item.id),
+  );
+  const questionId = questionQueue[questionIndex];
+  const question = questions.find((item) => item.id === questionId);
+  const sessionAccuracy = sessionAnswered
+    ? Math.round((sessionCorrect / sessionAnswered) * 100)
+    : 0;
 
   async function addWord() {
     if (!word.trim() || !meaning.trim()) return toast.error("Nhập từ và nghĩa.");
@@ -214,7 +259,7 @@ export function LearningWorkspace({
       body: JSON.stringify({
         questionId: question.id,
         answer,
-        durationSeconds: Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
+        durationSeconds: Math.max(1, Math.round((nowMs() - startedAt) / 1000)),
         module: challenge ? "competition" : kind === "quiz" ? "quiz" : "practice",
         challengeId: challenge?.id,
         idempotencyKey,
@@ -226,6 +271,7 @@ export function LearningWorkspace({
       explanation?: Record<string, string>;
       rewards?: { xp: number; tokens: number };
       rewardEligible?: boolean;
+      correctAnswer?: string;
     };
     setLoading(false);
     if (!response.ok) return toast.error(payload.error ?? "Không thể lưu kết quả.");
@@ -238,20 +284,97 @@ export function LearningWorkspace({
     );
     setRewards(payload.rewards ?? { xp: 0, tokens: 0 });
     setRewardEligible(payload.rewardEligible ?? true);
+    setCorrectAnswer(payload.correctAnswer ?? "");
+    setSessionAnswered((current) => current + 1);
+    setSessionXp((current) => current + (payload.rewards?.xp ?? 0));
+    setSessionTokens((current) => current + (payload.rewards?.tokens ?? 0));
+    if ((payload.score ?? 0) >= 70) {
+      setCombo((current) => current + 1);
+      setSessionCorrect((current) => current + 1);
+    } else {
+      setCombo(0);
+      setHearts((current) => Math.max(0, current - 1));
+      setQuestionQueue((current) =>
+        current.filter((id) => id === question.id).length < 2
+          ? [...current, question.id]
+          : current,
+      );
+    }
     play((payload.score ?? 0) >= 70 ? "complete" : "error");
     toast.success("Đã lưu kết quả luyện tập.");
     router.refresh();
   }
 
   function nextQuestion() {
+    if (hearts <= 0 || questionIndex >= questionQueue.length - 1) {
+      setSessionElapsedMinutes(
+        Math.max(1, Math.round((nowMs() - sessionStartedAt) / 60_000)),
+      );
+      setSessionComplete(true);
+      play("complete");
+      return;
+    }
     setAnswer("");
     setScore(null);
     setFeedback("");
+    setCorrectAnswer("");
     setRewards({ xp: 0, tokens: 0 });
     setRewardEligible(true);
+    setSelectedOrderIds([]);
     setIdempotencyKey(crypto.randomUUID());
-    setStartedAt(Date.now());
-    setQuestionIndex((current) => (current + 1) % Math.max(questions.length, 1));
+    setStartedAt(nowMs());
+    setQuestionIndex((current) => current + 1);
+  }
+
+  function resetCurrentQuestion() {
+    setAnswer("");
+    setScore(null);
+    setFeedback("");
+    setCorrectAnswer("");
+    setRewards({ xp: 0, tokens: 0 });
+    setRewardEligible(true);
+    setSelectedOrderIds([]);
+    setIdempotencyKey(crypto.randomUUID());
+    setStartedAt(nowMs());
+  }
+
+  function restartSession() {
+    setQuestionQueue(questions.map((item) => item.id));
+    setQuestionIndex(0);
+    setHearts(5);
+    setCombo(0);
+    setSessionCorrect(0);
+    setSessionXp(0);
+    setSessionTokens(0);
+    setSessionAnswered(0);
+    setSessionComplete(false);
+    setSessionStartedAt(nowMs());
+    setSessionElapsedMinutes(1);
+    resetCurrentQuestion();
+  }
+
+  function chooseOrderOption(optionId: string) {
+    if (!question?.options || selectedOrderIds.includes(optionId) || score !== null) return;
+    const nextIds = [...selectedOrderIds, optionId];
+    setSelectedOrderIds(nextIds);
+    setAnswer(
+      nextIds
+        .map((id) => question.options?.find((option) => option.id === id)?.text ?? "")
+        .join(" "),
+    );
+  }
+
+  function removeOrderOption(optionId: string) {
+    if (!question?.options || score !== null) return;
+    const index = selectedOrderIds.lastIndexOf(optionId);
+    if (index < 0) return;
+    const nextIds = selectedOrderIds.filter((_, itemIndex) => itemIndex !== index);
+    setSelectedOrderIds(nextIds);
+    setAnswer(
+      nextIds
+        .map((id) => question.options?.find((option) => option.id === id)?.text ?? "")
+        .join(" "),
+    );
   }
 
   async function runAi(mode: "writing" | "translation") {
@@ -394,19 +517,19 @@ export function LearningWorkspace({
     recognition.start();
   }
 
-  if (kind === "vocabulary") {
+  if (!lesson && kind === "vocabulary") {
     return (
       <Page title={title} description={description} icon={Icon}>
         <Card className="glass-panel interactive-lift">
-          <CardHeader><CardTitle>Thêm từ mới</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t("workspace.addWord")}</CardTitle></CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-            <Input value={word} onChange={(event) => setWord(event.target.value)} placeholder="English word" />
-            <Input value={meaning} onChange={(event) => setMeaning(event.target.value)} placeholder="Nghĩa tiếng Việt" />
-            <Button onClick={addWord} disabled={loading}><Plus /> Lưu</Button>
+            <Input value={word} onChange={(event) => setWord(event.target.value)} placeholder={t("workspace.word")} />
+            <Input value={meaning} onChange={(event) => setMeaning(event.target.value)} placeholder={t("workspace.meaning")} />
+            <Button onClick={addWord} disabled={loading}><Plus /> {t("common.save")}</Button>
           </CardContent>
         </Card>
         <Card className="glass-panel">
-          <CardHeader><CardTitle>Từ đã lưu ({data.vocabulary.length})</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t("workspace.savedWords", { count: data.vocabulary.length })}</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-2">
             {data.vocabulary.length ? data.vocabulary.map((item) => (
               <div key={item.id} className="interactive-lift flex items-center gap-3 rounded-2xl border bg-white/75 p-4">
@@ -416,23 +539,23 @@ export function LearningWorkspace({
                 </div>
                 <Button variant="ghost" size="icon-sm" onClick={() => deleteWord(item.id)}><Trash2 /></Button>
               </div>
-            )) : <Empty text="Bạn chưa lưu từ vựng nào." />}
+            )) : <Empty text={t("workspace.noVocabulary")} />}
           </CardContent>
         </Card>
       </Page>
     );
   }
 
-  if (kind === "flashcards") {
+  if (!lesson && kind === "flashcards") {
     const card = data.vocabulary[cardIndex];
     return (
       <Page title={title} description={description} icon={Icon}>
         {card ? (
           <Card className="glass-panel interactive-lift mx-auto w-full max-w-2xl overflow-hidden">
             <CardContent className="wave-grid flex min-h-[390px] cursor-pointer flex-col items-center justify-center p-8 text-center" onClick={() => { play("tap"); setShowBack((value) => !value); }}>
-              <Badge variant="secondary">{card.level || "Chưa đặt level"}</Badge>
+              <Badge variant="secondary">{card.level || t("workspace.noLevel")}</Badge>
               <p className="mt-6 text-5xl font-bold tracking-tight">{card.word}</p>
-              <p className="mt-3 text-muted-foreground">{showBack ? card.meaning_vi : "Nhấn để xem nghĩa"}</p>
+              <p className="mt-3 text-muted-foreground">{showBack ? card.meaning_vi : t("workspace.tapMeaning")}</p>
               {showBack ? <div className="mt-8 flex flex-wrap justify-center gap-2">
                 {(["again", "hard", "good", "easy"] as const).map((quality) => (
                   <Button key={quality} variant="outline" onClick={(event) => { event.stopPropagation(); reviewWord(card.id, quality); }}>{quality}</Button>
@@ -440,12 +563,12 @@ export function LearningWorkspace({
               </div> : null}
             </CardContent>
           </Card>
-        ) : <Empty text="Hãy thêm từ ở trang Từ vựng trước khi ôn flashcard." />}
+        ) : <Empty text={t("workspace.flashcardEmpty")} />}
       </Page>
     );
   }
 
-  if (kind === "writing" || kind === "translation") {
+  if (!lesson && (kind === "writing" || kind === "translation")) {
     return (
       <Page title={title} description={description} icon={Icon}>
         <div className="grid gap-5 lg:grid-cols-2">
@@ -467,7 +590,7 @@ export function LearningWorkspace({
     );
   }
 
-  if (kind === "progress") {
+  if (!lesson && kind === "progress") {
     return (
       <Page title={title} description={description} icon={Icon}>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -483,7 +606,35 @@ export function LearningWorkspace({
   }
 
   return (
-    <Page title={title} description={description} icon={Icon}>
+    <Page
+      title={lesson?.title ?? title}
+      description={lesson?.description ?? description}
+      icon={Icon}
+      compact={Boolean(lesson || challenge)}
+    >
+      {lesson ? (
+        <Card className="overflow-hidden border-0 bg-gradient-to-r from-sky-600 via-cyan-500 to-blue-600 text-white">
+          <CardContent className="grid gap-4 p-5 md:grid-cols-[1fr_280px] md:items-center">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-sky-100">
+                Checkpoint {lesson.position} · {lesson.level}
+              </p>
+              <h2 className="mt-1 text-2xl font-black">{lesson.title}</h2>
+              <p className="mt-2 text-sm text-sky-50">{lesson.description}</p>
+            </div>
+            <div className="rounded-2xl bg-white/15 p-4 backdrop-blur">
+              <div className="flex justify-between text-sm">
+                <span>{t("workspace.mastery")}</span>
+                <strong>{Math.round(lesson.mastery)}% / {lesson.unlockMastery}%</strong>
+              </div>
+              <Progress value={lesson.mastery} className="mt-2" />
+              <p className="mt-2 text-xs text-sky-50">
+                {t("workspace.passed", { passed: lesson.passedQuestions, total: Math.max(lesson.totalQuestions, questions.length), best: Math.round(lesson.bestScore) })}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
       {challenge ? (
         <Card className="overflow-hidden border-0 bg-gradient-to-r from-indigo-950 via-violet-900 to-indigo-800 text-white">
           <CardContent className="grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
@@ -500,21 +651,93 @@ export function LearningWorkspace({
           </CardContent>
         </Card>
       ) : null}
-      {question ? (
-        <Card className="glass-panel interactive-lift max-w-4xl overflow-hidden">
-          <CardHeader>
+      {sessionComplete ? (
+        <Card className="relative mx-auto w-full max-w-4xl overflow-hidden border-0 bg-white/90 shadow-[0_28px_80px_-36px_rgba(14,116,144,0.55)]">
+          <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-500" />
+          <CardContent className="grid gap-8 p-6 md:grid-cols-[1fr_260px] md:p-10">
+            <div className="flex flex-col justify-center">
+              <div className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                <Trophy className="size-7" />
+              </div>
+              <p className="text-sm font-bold uppercase tracking-[0.16em] text-primary">
+                {t("workspace.sessionComplete")}
+              </p>
+              <h2 className="mt-2 text-3xl font-black tracking-tight md:text-4xl">
+                {sessionAccuracy >= 80
+                  ? t("workspace.completeExcellent")
+                  : sessionAccuracy >= 60
+                    ? t("workspace.completeGood")
+                    : t("workspace.completePractice")}
+              </h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+                {t("workspace.completeDescription")}
+              </p>
+              <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <SessionMetric icon={Target} label={t("workspace.accuracy")} value={`${sessionAccuracy}%`} tone="sky" />
+                <SessionMetric icon={CheckCircle2} label={t("workspace.correctAnswers")} value={`${sessionCorrect}/${sessionAnswered}`} tone="emerald" />
+                <SessionMetric icon={Zap} label="XP" value={`+${sessionXp}`} tone="amber" />
+                <SessionMetric icon={Clock3} label={t("workspace.studyTime")} value={t("roadmap.minutes", { count: sessionElapsedMinutes })} tone="violet" />
+              </div>
+              <div className="mt-7 flex flex-wrap gap-3">
+                <Button size="lg" onClick={restartSession}>
+                  <RotateCcw /> {t("workspace.practiceAgain")}
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => router.push(lesson ? "/roadmap" : "/practice")}
+                >
+                  {lesson ? t("workspace.backRoadmap") : t("workspace.backPractice")}
+                  <ArrowRight />
+                </Button>
+              </div>
+            </div>
+            <div className="quest-shine relative flex min-h-64 flex-col items-center justify-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-sky-100 via-cyan-50 to-indigo-100 p-6 text-center">
+              <Image
+                src={sessionAccuracy >= 70 ? "/mascot/lumo-celebration.gif" : "/mascot/lumo-encourage.png"}
+                alt={t(sessionAccuracy >= 70 ? "mascot.celebrate" : "mascot.encourage")}
+                width={180}
+                height={180}
+                unoptimized={sessionAccuracy >= 70}
+                className="size-40 object-contain"
+              />
+              <p className="mt-2 text-sm font-bold text-sky-900">
+                +{sessionTokens} Lingora Token
+              </p>
+              <p className="mt-1 text-xs text-sky-700">
+                {t("workspace.savedProgressHint")}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : question ? (
+        <Card className="mx-auto w-full max-w-4xl gap-0 overflow-hidden border border-white/80 bg-white/90 py-0 shadow-[0_24px_70px_-38px_rgba(14,116,144,0.65)] backdrop-blur-xl">
+          <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 border-b bg-slate-50/90 px-5 py-4 md:px-7">
+            <Progress
+              value={Math.min(100, ((questionIndex + (score !== null ? 1 : 0)) / Math.max(questionQueue.length, 1)) * 100)}
+            />
+            <span className="flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-sm font-black text-rose-500">
+              <Heart className="size-4 fill-current" /> {hearts}
+            </span>
+            <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-sm font-black text-amber-500">
+              <Zap className="size-4 fill-current" /> {combo}
+            </span>
+          </div>
+          <CardHeader className="px-5 pt-6 md:px-8 md:pt-8">
             <div className="flex flex-wrap items-center gap-2">
               <Badge>{question.difficulty}</Badge>
               <Badge variant="outline">{question.question_type}</Badge>
               <span className="ml-auto text-xs text-muted-foreground">
-                {t("workspace.question", { current: questionIndex + 1, total: questions.length })}
+                {t("workspace.question", { current: questionIndex + 1, total: questionQueue.length })}
               </span>
             </div>
-            <CardTitle className="pt-3">{promptText(question.prompt, locale)}</CardTitle>
+            <CardTitle className="pt-4 text-xl font-black leading-snug md:text-2xl">
+              {promptText(question.prompt, locale)}
+            </CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col gap-5">
-            {question.passage ? <blockquote className="rounded-2xl bg-secondary/60 p-5 leading-7">{question.passage}</blockquote> : null}
-            {question.skill === "listening" ? <Button variant="outline" onClick={speakPassage}><Volume2 /> Phát audio</Button> : null}
+          <CardContent className="flex flex-col gap-5 px-5 pb-7 md:px-8 md:pb-8">
+            {question.passage ? <blockquote className="rounded-3xl border border-sky-100 bg-sky-50/80 p-5 leading-7">{question.passage}</blockquote> : null}
+            {question.skill === "listening" ? <Button variant="outline" onClick={speakPassage}><Volume2 /> {t("workspace.playAudio")}</Button> : null}
             {question.skill === "speaking" ? (
               <>
                 <p className="rounded-2xl bg-secondary/60 p-5 text-lg">{question.prompt.model}</p>
@@ -556,20 +779,35 @@ export function LearningWorkspace({
             ) : null}
             {question.question_type === "sentence_order" && question.options?.length ? (
               <div className="flex flex-col gap-4">
-                <div className="min-h-16 rounded-2xl border-2 border-dashed bg-white/70 p-4 font-medium">
-                  {answer || "Chọn các từ theo đúng thứ tự..."}
+                <div className="flex min-h-20 flex-wrap content-start gap-2 rounded-3xl border-2 border-dashed border-sky-200 bg-sky-50/60 p-4 font-medium">
+                  {selectedOrderIds.length
+                    ? selectedOrderIds.map((id, index) => {
+                        const option = question.options?.find((item) => item.id === id);
+                        return (
+                          <button
+                            key={`${id}-${index}`}
+                            type="button"
+                            onClick={() => removeOrderOption(id)}
+                            className="rounded-xl bg-primary px-3 py-2 text-sm font-bold text-primary-foreground shadow-sm"
+                          >
+                            {option?.text}
+                          </button>
+                        );
+                      })
+                    : <span className="text-sm font-normal text-muted-foreground">{t("workspace.orderHint")}</span>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {question.options.map((option) => (
                     <Button
                       key={option.id}
                       variant="outline"
-                      onClick={() => setAnswer((current) => `${current} ${option.text}`.trim())}
+                      disabled={selectedOrderIds.includes(option.id) || score !== null}
+                      onClick={() => chooseOrderOption(option.id)}
                     >
                       {option.text}
                     </Button>
                   ))}
-                  <Button variant="ghost" onClick={() => setAnswer("")}><RotateCcw /> Xếp lại</Button>
+                  <Button variant="ghost" disabled={score !== null} onClick={() => { setSelectedOrderIds([]); setAnswer(""); }}><RotateCcw /> {t("workspace.reorder")}</Button>
                 </div>
               </div>
             ) : question.options?.length ? (
@@ -584,24 +822,32 @@ export function LearningWorkspace({
               <Textarea value={answer} onChange={(event) => setAnswer(event.target.value)} className="min-h-32 bg-white/80" placeholder={question.skill === "speaking" ? t("workspace.voiceTranscript") : t("workspace.answer")} />
             )}
             {score !== null ? (
-              <div className={`relative overflow-hidden rounded-2xl border p-5 ${score >= 70 ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+              <div className={`relative overflow-hidden rounded-3xl border p-5 ${score >= 70 ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-rose-200 bg-rose-50 text-rose-950"}`}>
                 <div className="flex items-center gap-4">
                   <Image
                     src={score >= 70 ? "/mascot/lumo-celebration.gif" : "/mascot/lumo-encourage.png"}
-                    alt={score >= 70 ? "Lumo ăn mừng" : "Lumo động viên"}
+                    alt={t(score >= 70 ? "mascot.celebrate" : "mascot.encourage")}
                     width={88}
                     height={88}
                     unoptimized={score >= 70}
                     className="size-20 object-contain"
                   />
                   <div>
-                    <p className="text-xl font-bold">{t("workspace.savedScore", { score })}</p>
+                    <p className="text-lg font-black">
+                      {score >= 70 ? t("workspace.correctFeedback") : t("workspace.incorrectFeedback")}
+                    </p>
+                    <p className="mt-1 text-sm">{t("workspace.savedScore", { score })}</p>
                     <p className="mt-1 text-sm font-semibold">
                       +{rewards.xp} XP · +{rewards.tokens} Lingora Token
                     </p>
                     {!rewardEligible ? (
                       <p className="mt-1 text-xs font-semibold text-amber-700">
-                        Kết quả đã lưu nhưng không phát thưởng do lặp câu, cooldown hoặc đạt hạn mức ngày.
+                        {t("workspace.rewardLimited")}
+                      </p>
+                    ) : null}
+                    {score < 70 && correctAnswer ? (
+                      <p className="mt-2 text-sm font-semibold">
+                        {t("workspace.correctAnswer", { answer: correctAnswer })}
                       </p>
                     ) : null}
                     {feedback ? <p className="mt-2 text-sm font-normal leading-6 opacity-80">{feedback}</p> : null}
@@ -609,16 +855,32 @@ export function LearningWorkspace({
                 </div>
               </div>
             ) : null}
-            <div className="flex gap-3">
-              <Button onClick={submitAttempt} disabled={!answer.trim() || loading}>{loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 />} {t("workspace.submit")}</Button>
-              {score !== null && questions.length > 1 ? (
-                <Button variant="outline" onClick={nextQuestion}>
-                  {t("workspace.next")}
-                </Button>
+            <div className="flex flex-col-reverse gap-3 border-t pt-5 sm:flex-row sm:items-center">
+              {score === null ? (
+                <>
+                  <Button variant="outline" size="lg" onClick={resetCurrentQuestion}>
+                    <RotateCcw /> {t("common.retry")}
+                  </Button>
+                  <Button className="sm:ml-auto sm:min-w-44" size="lg" onClick={submitAttempt} disabled={!answer.trim() || loading || hearts <= 0}>
+                    {loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
+                    {t("workspace.submit")}
+                  </Button>
+                </>
               ) : (
-                <Button variant="outline" onClick={() => { setAnswer(""); setScore(null); setFeedback(""); setRewards({ xp: 0, tokens: 0 }); setRewardEligible(true); setIdempotencyKey(crypto.randomUUID()); setStartedAt(Date.now()); }}><RotateCcw /> {t("common.retry")}</Button>
+                <Button className="sm:ml-auto sm:min-w-44" size="lg" onClick={nextQuestion}>
+                  {hearts <= 0 || questionIndex >= questionQueue.length - 1
+                    ? t("workspace.finishSession")
+                    : t("workspace.next")}
+                  <ArrowRight />
+                </Button>
               )}
             </div>
+            <p className="text-center text-xs text-muted-foreground sm:text-left">
+              {t("workspace.sessionCorrect", {
+                correct: sessionCorrect,
+                total: sessionAnswered,
+              })}
+            </p>
           </CardContent>
         </Card>
       ) : <Empty text={t("workspace.noQuestions")} />}
@@ -631,12 +893,18 @@ function Page({
   description,
   icon: Icon,
   children,
+  compact = false,
 }: {
   title: string;
   description: string;
   icon: typeof BookOpen;
   children: React.ReactNode;
+  compact?: boolean;
 }) {
+  const { t } = useLocale();
+  if (compact) {
+    return <div className="flex flex-col gap-6">{children}</div>;
+  }
   const tone =
     title.toLowerCase().includes("quiz") || title.toLowerCase().includes("kiểm tra")
       ? "amber"
@@ -661,11 +929,11 @@ function Page({
           <div className="grid grid-cols-2 gap-2">
             <span className="rounded-2xl bg-white/15 px-4 py-3 text-sm backdrop-blur">
               <Flame className="mb-1 size-4" />
-              Học đều mỗi ngày
+              {t("workspace.dailyHabit")}
             </span>
             <span className="rounded-2xl bg-white/15 px-4 py-3 text-sm backdrop-blur">
               <Target className="mb-1 size-4" />
-              Tiến bộ theo dữ liệu
+              {t("workspace.dataProgress")}
             </span>
           </div>
         }
@@ -677,4 +945,30 @@ function Page({
 
 function Empty({ text }: { text: string }) {
   return <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">{text}</div>;
+}
+
+function SessionMetric({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: typeof Target;
+  label: string;
+  value: string;
+  tone: "sky" | "emerald" | "amber" | "violet";
+}) {
+  const tones = {
+    sky: "bg-sky-50 text-sky-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+    violet: "bg-violet-50 text-violet-700",
+  };
+  return (
+    <div className={`rounded-2xl p-3 ${tones[tone]}`}>
+      <Icon className="size-4" />
+      <strong className="mt-2 block text-lg">{value}</strong>
+      <span className="text-[11px] font-medium opacity-75">{label}</span>
+    </div>
+  );
 }

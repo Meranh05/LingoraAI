@@ -24,6 +24,8 @@ function assertNoError(error: { message: string } | null, context: string) {
 
 export async function getDashboardData(viewer: Viewer) {
   const supabase = await createClient();
+  const admin = createAdminClient();
+  await admin.rpc("refresh_recurring_challenges");
   const weekStart = new Date();
   weekStart.setHours(0, 0, 0, 0);
   weekStart.setDate(weekStart.getDate() - 6);
@@ -201,7 +203,7 @@ export async function getRoadmapData(viewer: Viewer) {
     await Promise.all([
       supabase
         .from("learning_units")
-        .select("id,position,title,description,skill,level,estimated_minutes")
+        .select("id,position,title,description,skill,level,estimated_minutes,unlock_mastery,content")
         .eq("path_id", path.id)
         .order("position"),
       supabase
@@ -249,6 +251,8 @@ export async function getRoadmapData(viewer: Viewer) {
         skill: unit.skill,
         level: unit.level,
         estimatedMinutes: unit.estimated_minutes,
+        unlockMastery: unit.unlock_mastery,
+        mascot: String((unit.content as { mascot?: string } | null)?.mascot ?? "read"),
         mastery: Number(saved?.mastery ?? 0),
         bestScore: Number(saved?.best_score ?? 0),
         attempts: saved?.attempts ?? 0,
@@ -262,7 +266,7 @@ export async function getRoadmapData(viewer: Viewer) {
 
 export async function getLearningWorkspaceData(
   viewer: Viewer,
-  options?: { challengeId?: string; kind?: string },
+  options?: { challengeId?: string; kind?: string; unitId?: string },
 ) {
   const supabase = await createClient();
   const admin = createAdminClient();
@@ -288,6 +292,8 @@ export async function getLearningWorkspaceData(
       "id",
       challengeQuestionIds.length ? challengeQuestionIds : ["00000000-0000-0000-0000-000000000000"],
     );
+  } else if (options?.unitId) {
+    questionQuery = questionQuery.eq("unit_id", options.unitId);
   } else if (kind && ["reading", "listening", "speaking"].includes(kind)) {
     questionQuery = questionQuery.eq("skill", kind);
   } else if (kind && !["quiz", "practice"].includes(kind)) {
@@ -305,6 +311,15 @@ export async function getLearningWorkspaceData(
     !kind || ["progress", "practice"].includes(kind)
       ? supabase.from("user_skill_progress").select("*").eq("user_id", viewer.id).order("skill")
       : Promise.resolve({ data: [], error: null });
+  const attemptsPromise =
+    kind && ["reading", "listening", "speaking", "quiz", "practice", "competition"].includes(kind)
+      ? supabase
+          .from("practice_attempts")
+          .select("id,question_id,skill,score,created_at")
+          .eq("user_id", viewer.id)
+          .order("created_at", { ascending: false })
+          .limit(120)
+      : Promise.resolve({ data: [], error: null });
   const [
     vocabulary,
     documents,
@@ -317,17 +332,28 @@ export async function getLearningWorkspaceData(
     vocabularyPromise,
     documentsPromise,
     questionQuery,
-    Promise.resolve({ data: [], error: null }),
+    attemptsPromise,
     Promise.resolve({ data: [], error: null }),
     Promise.resolve({ data: [], error: null }),
     progressPromise,
   ]);
   const resultsToCheck = [vocabulary, documents, questions, attempts, reviews, results, progress];
   resultsToCheck.forEach((result) => assertNoError(result.error, "Dữ liệu học tập"));
-  return {
-    vocabulary: vocabulary.data ?? [],
-    documents: documents.data ?? [],
-    questions: (questions.data ?? []).map((question) => ({
+  const attemptStats = new Map<string, { best: number; last: string; count: number }>();
+  (attempts.data ?? []).forEach((attempt) => {
+    if (!attempt.question_id) return;
+    const saved = attemptStats.get(attempt.question_id) ?? {
+      best: 0,
+      last: "",
+      count: 0,
+    };
+    saved.best = Math.max(saved.best, Number(attempt.score ?? 0));
+    saved.last = saved.last > attempt.created_at ? saved.last : attempt.created_at;
+    saved.count += 1;
+    attemptStats.set(attempt.question_id, saved);
+  });
+  const adaptiveQuestions = (questions.data ?? [])
+    .map((question) => ({
       ...question,
       options: Array.isArray(question.options)
         ? (question.options as unknown[]).map((option: unknown, index: number) =>
@@ -336,11 +362,93 @@ export async function getLearningWorkspaceData(
               : (option as { id: string; text: string }),
           )
         : null,
-    })),
+    }))
+    .sort((left, right) => {
+      const a = attemptStats.get(left.id);
+      const b = attemptStats.get(right.id);
+      if (!a && b) return -1;
+      if (a && !b) return 1;
+      if ((a?.best ?? 0) !== (b?.best ?? 0)) return (a?.best ?? 0) - (b?.best ?? 0);
+      if ((a?.count ?? 0) !== (b?.count ?? 0)) return (a?.count ?? 0) - (b?.count ?? 0);
+      return (a?.last ?? "").localeCompare(b?.last ?? "");
+    });
+  return {
+    vocabulary: vocabulary.data ?? [],
+    documents: documents.data ?? [],
+    questions: adaptiveQuestions,
     attempts: attempts.data ?? [],
     reviews: reviews.data ?? [],
     quizResults: results.data ?? [],
     progress: progress.data ?? [],
+  };
+}
+
+export async function getUnitLessonData(viewer: Viewer, unitId: string) {
+  const supabase = await createClient();
+  const [
+    { data: unit, error: unitError },
+    { data: enrollment, error: enrollmentError },
+    { data: progress, error: progressError },
+  ] = await Promise.all([
+    supabase
+      .from("learning_units")
+      .select("id,path_id,position,title,description,skill,level,estimated_minutes,unlock_mastery,content,learning_paths!inner(is_published)")
+      .eq("id", unitId)
+      .eq("learning_paths.is_published", true)
+      .maybeSingle(),
+    supabase
+      .from("user_path_enrollments")
+      .select("path_id,current_unit_id,status")
+      .eq("user_id", viewer.id),
+    supabase
+      .from("user_unit_progress")
+      .select("unit_id,mastery,best_score,attempts,passed_questions,total_questions,completed_at")
+      .eq("user_id", viewer.id),
+  ]);
+  assertNoError(unitError, "Checkpoint");
+  assertNoError(enrollmentError, "Đăng ký lộ trình");
+  assertNoError(progressError, "Tiến độ checkpoint");
+  if (!unit) return null;
+
+  const pathEnrollment = (enrollment ?? []).find((item) => item.path_id === unit.path_id);
+  if (!pathEnrollment) return { locked: true as const, reason: "not_enrolled" as const };
+
+  const { data: previous } = await supabase
+    .from("learning_units")
+    .select("id")
+    .eq("path_id", unit.path_id)
+    .lt("position", unit.position)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const progressMap = new Map((progress ?? []).map((item) => [item.unit_id, item]));
+  if (previous && !progressMap.get(previous.id)?.completed_at) {
+    return { locked: true as const, reason: "previous_incomplete" as const };
+  }
+  const saved = progressMap.get(unit.id);
+  return {
+    locked: false as const,
+    lesson: {
+      id: unit.id,
+      position: unit.position,
+      title: localized(unit.title as Localized, viewer.locale),
+      description: localized(unit.description as Localized, viewer.locale),
+      skill: unit.skill,
+      level: unit.level,
+      estimatedMinutes: unit.estimated_minutes,
+      unlockMastery: unit.unlock_mastery,
+      mascot: String((unit.content as { mascot?: string } | null)?.mascot ?? "read"),
+      mastery: Number(saved?.mastery ?? 0),
+      bestScore: Number(saved?.best_score ?? 0),
+      attempts: saved?.attempts ?? 0,
+      passedQuestions: saved?.passed_questions ?? 0,
+      totalQuestions: saved?.total_questions ?? 0,
+      completed: Boolean(saved?.completed_at),
+    },
+    workspace: await getLearningWorkspaceData(viewer, {
+      kind: unit.skill,
+      unitId: unit.id,
+    }),
   };
 }
 

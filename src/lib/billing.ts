@@ -147,13 +147,11 @@ export async function getBillingDashboard(userId: string) {
 export async function consumeAiQuota(userId: string) {
   const { plan } = await getUserBilling(userId);
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .schema("private")
-    .rpc("consume_daily_usage", {
-      target_user_id: userId,
-      target_metric: "ai_request",
-      target_limit: plan.aiRequestsPerDay,
-    });
+  const { data, error } = await supabase.rpc("consume_daily_usage", {
+    target_user_id: userId,
+    target_metric: "ai_request",
+    target_limit: plan.aiRequestsPerDay,
+  });
   if (error) throw new Error(error.message);
   const result = data?.[0] as
     | { allowed: boolean; used: number; quota: number }
