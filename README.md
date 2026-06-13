@@ -1,17 +1,20 @@
 <div align="center">
 
+<img src="public/brand/lingora-logo.svg" alt="Lingora" width="220" />
+
 # Lingora AI
 
-### Privacy-first, multi-model English learning for global learners
+### Privacy-first AI language learning with strict progression, real user data and multi-model support
 
 [![CI](https://github.com/Meranh05/LingoraAI/actions/workflows/ci.yml/badge.svg)](https://github.com/Meranh05/LingoraAI/actions/workflows/ci.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
-[![Supabase](https://img.shields.io/badge/Supabase-Auth%20%2B%20RLS-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
+[![Supabase](https://img.shields.io/badge/Supabase-Auth%20%7C%20Postgres%20%7C%20Storage-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/github/license/Meranh05/LingoraAI)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/Meranh05/LingoraAI?style=social)](https://github.com/Meranh05/LingoraAI/stargazers)
 
-**[English](#english) · [Tiếng Việt](#tiếng-việt) · [Setup](#quick-start) · [Architecture](#architecture)**
+[English](#english) · [Tiếng Việt](#tiếng-việt) · [Quick Start](#quick-start) · [Configuration](#configuration) · [Architecture](#architecture)
 
 ![Lingora dashboard](docs/screenshots/dashboard.png)
 
@@ -19,120 +22,190 @@
 
 ## English
 
-Lingora is an open-source AI English-learning platform built for document-based
-learning, adaptive practice and privacy-conscious personalization.
+Lingora is an open-source AI-assisted English learning platform built with
+Next.js, Supabase and Stripe. It combines structured learning stages,
+skill-based practice, document learning, gamification and configurable AI
+providers in one account-isolated application.
 
-It combines:
+### What is implemented
 
-- Google OAuth, magic-link and email/password authentication.
-- User/admin role-based access and server-side authorization.
-- Row Level Security so every learner only accesses their own private data.
-- Reading, writing, listening and speaking practice.
-- Document extraction, bilingual summaries, questions and vocabulary.
-- Learning roadmaps, skill mastery and progress analytics.
-- OpenAI, Gemini, Groq, OpenRouter, Anthropic and custom compatible APIs.
-- Stripe subscriptions with Basic, Plus and Pro plans in VND or USD.
-- A consent-based AI feedback pipeline for building anonymized training data.
-- Vietnamese, English, Japanese and Thai navigation.
+- Google OAuth, magic link and email/password authentication.
+- Server-side `user` / `admin` authorization and Supabase Row Level Security.
+- Strict stage progression: completing stage A is required before stage B.
+- Stage sessions that only accept questions assigned to the active unit.
+- Server-calculated completion scores, one-time rewards and anti-spam controls.
+- Completion dialog with answers, correct answers, score and next-stage action.
+- Difficult-question review queue persisted per learner.
+- AI Tutor with saved conversations, document context and answer feedback.
+- Reading, listening, speaking, writing, translation, quiz and vocabulary tools.
+- Flashcards with spaced review and learner-owned vocabulary.
+- PDF, DOCX and TXT extraction with AI learning tools.
+- XP, tokens, daily/weekly challenges, levels and competition leaderboards.
+- Stripe plans, customer portal, subscription webhooks and token purchases.
+- Avatar uploads through Supabase Storage with ownership policies.
+- User preferences for sound, motion, mascot, compact mode and reminders.
+- Vietnamese, English, Japanese and Thai interface support.
+- Modern admin console for users, content, billing, AI and system diagnostics.
 
-> Lingora does **not** silently train on private conversations. Training
-> candidates are created only from explicit feedback when consent is enabled,
-> anonymized, and reviewed by an administrator before export.
+> Lingora never silently trains on private conversations. Training candidates
+> require explicit feedback, learner consent, PII filtering and administrator
+> review before export.
 
 ## Tiếng Việt
 
-Lingora là nền tảng học tiếng Anh mã nguồn mở có AI, tập trung vào học theo tài
-liệu, luyện kỹ năng thích ứng và bảo vệ dữ liệu người dùng.
+Lingora là nền tảng học tiếng Anh mã nguồn mở có AI, sử dụng dữ liệu thật theo
+từng tài khoản và bảo vệ dữ liệu bằng Supabase RLS.
 
-### Điểm nổi bật
+### Tính năng chính
 
-- Đăng nhập Google, magic link, email và mật khẩu.
-- Phân quyền `user` / `admin`, khóa hoặc mở tài khoản.
-- RLS bảo đảm user chỉ đọc và sửa dữ liệu thuộc tài khoản của chính mình.
-- Lộ trình A1–B1, mục tiêu ngày, tiến độ từng kỹ năng.
-- Câu hỏi đọc, viết, nghe, nói; phản hồi và chấm điểm trực tiếp.
-- Upload PDF, DOCX, TXT; tóm tắt song ngữ, tạo quiz và bộ từ vựng.
-- Gia sư AI có memory cá nhân, feedback tốt/xấu và model gateway đa provider.
-- AI Lab xuất JSONL từ dữ liệu đã consent, khử định danh và được admin duyệt.
-- UI responsive cho desktop/mobile và điều hướng đa ngôn ngữ.
+- Đăng ký/đăng nhập bằng Google, magic link, email và mật khẩu.
+- Phân quyền `user` / `admin`; user chỉ truy cập dữ liệu của chính mình.
+- Lộ trình khóa tuần tự: hoàn thành chặng trước mới mở chặng tiếp theo.
+- Mỗi phiên chặng chỉ ghi nhận câu hỏi thuộc đúng chặng đang học.
+- Popup tổng kết điểm, câu trả lời, đáp án đúng, XP/token và nút qua chặng mới.
+- Thưởng hoàn thành chỉ nhận một lần; có idempotency và giới hạn chống spam.
+- Câu sai hoặc được đánh dấu khó được lưu vào danh sách ôn lại.
+- Gia sư AI đa provider, hội thoại lưu theo tài khoản và hỏi đáp theo tài liệu.
+- Luyện đọc, nghe, nói, viết, dịch thuật, quiz, từ vựng và flashcards.
+- Hệ thống level, nhiệm vụ, thi đua, bảng xếp hạng, XP và Lingora Token.
+- Upload ảnh đại diện thật bằng Supabase Storage.
+- Cài đặt âm thanh, hoạt ảnh, linh vật, giao diện thu gọn và nhắc học.
+- Admin Console quản lý người dùng, nội dung, AI, gói dịch vụ và hệ thống.
 
 ## Product Tour
 
 | Authentication | Learning roadmap |
 | --- | --- |
-| ![Authentication](docs/screenshots/login.png) | ![Roadmap](docs/screenshots/roadmap.png) |
+| ![Lingora authentication](docs/screenshots/login.png) | ![Lingora roadmap](docs/screenshots/roadmap.png) |
 
 | Adaptive practice | Administration |
 | --- | --- |
-| ![Practice](docs/screenshots/practice.png) | ![Admin](docs/screenshots/admin.png) |
+| ![Lingora practice](docs/screenshots/practice.png) | ![Lingora admin](docs/screenshots/admin.png) |
 
 <details>
-<summary>Mobile roadmap</summary>
+<summary>Mobile roadmap preview</summary>
 
-![Mobile roadmap](docs/screenshots/mobile-roadmap.png)
+![Lingora mobile roadmap](docs/screenshots/mobile-roadmap.png)
 
 </details>
 
-## Feature Matrix
+## Modules
 
-| Area | Included |
+| Module | Capabilities |
 | --- | --- |
-| Authentication | Google OAuth, magic link, password, PKCE callback, SSR cookies |
-| Authorization | Proxy session refresh, server DAL, admin API checks, RLS |
-| Learning | Roadmap, reading, writing, listening, speaking, vocabulary, quiz |
-| Documents | PDF/DOCX/TXT extraction, summary, questions, vocabulary |
-| AI | Multi-provider gateway, auto-detect, user memory, explicit feedback |
-| Admin | User role/status management, metrics, AI Lab, JSONL export |
-| Billing | Stripe Checkout, Customer Portal, webhook sync, quotas, revenue dashboard |
-| Privacy | Per-user rows, private storage, consent snapshot, PII filtering |
-| Internationalization | Vietnamese, English, Japanese and Thai navigation |
+| AI Tutor | Multi-model chat, document context, persisted sessions, feedback |
+| Roadmap | Sequential units, mastery gates, completion summaries, boss stages |
+| Skill Practice | Reading, listening, speaking and writing progress |
+| Documents | PDF/DOCX/TXT extraction, summaries, questions and vocabulary |
+| Vocabulary | Personal word library and review scheduling |
+| Flashcards | Learner-owned cards and spaced repetition |
+| Speaking | Microphone permission diagnostics and Web Speech transcription |
+| Quiz | Multiple choice, fill blank, dictation, matching and sentence order |
+| Progress | Skill mastery, attempts, study time, streaks and levels |
+| Competition | Opt-in leaderboard, weekly challenges and anti-spam scoring |
+| Economy | XP, Lingora Tokens, temporary unlocks and Stripe purchases |
+| Settings | Profile, avatar, locale, preferences, AI keys and diagnostics |
+| Admin | Users, content studio, billing metrics, AI Lab and system status |
+
+## Tech Stack
+
+- Next.js 16 App Router and React 19
+- TypeScript in strict mode
+- Tailwind CSS 4 and shadcn/Base UI components
+- Supabase Auth, PostgreSQL, RLS and Storage
+- Stripe Checkout, Billing Portal and webhooks
+- Gemini, Groq, OpenAI, OpenRouter, Anthropic and custom compatible endpoints
+- Vitest and GitHub Actions
 
 ## Quick Start
 
 Requirements:
 
-- Node.js 20.16+ or 22+
+- Node.js 22 recommended
 - pnpm 10+
-- A Supabase project for production authentication/data
+- A Supabase project
 
 ```bash
 git clone https://github.com/Meranh05/LingoraAI.git
 cd LingoraAI
 pnpm install
+```
+
+Windows PowerShell:
+
+```powershell
 Copy-Item .env.example .env.local
+pnpm dev
+```
+
+macOS/Linux:
+
+```bash
+cp .env.example .env.local
 pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Lingora does not fabricate demo user data. Without Supabase variables, protected
-routes redirect to `/setup` and remain unavailable until the database is
-configured.
+Protected routes redirect to `/setup` until Supabase is configured. Lingora
+does not generate fake learner records when the backend is missing.
+
+## Configuration
+
+```dotenv
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
+
+GEMINI_API_KEY=
+GROQ_API_KEY=
+OPENAI_API_KEY=
+OPENROUTER_API_KEY=
+ANTHROPIC_API_KEY=
+
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+```
+
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` is intended for browser use with RLS.
+`SUPABASE_SECRET_KEY`, AI provider keys and Stripe secrets must remain
+server-only.
+
+Users can alternatively enter an AI API key in Settings. Browser-entered keys
+are kept in `sessionStorage`, sent to a server Route Handler only when making a
+request, and are not persisted to Supabase.
 
 ## Supabase Setup
 
 1. Create a Supabase project.
-2. Copy the project URL, publishable key and secret key to `.env.local`.
-3. Run migrations in order:
-
-```text
-supabase/migrations/202606090001_initial_lingora.sql
-supabase/migrations/202606090002_auth_rbac_learning_ai.sql
-supabase/migrations/202606090003_real_learning_workflows.sql
-supabase/migrations/202606090004_security_hardening.sql
-supabase/migrations/202606100001_competition_leaderboard.sql
-supabase/migrations/202606100002_billing_subscriptions.sql
-```
-
-4. Enable Email and Google in **Authentication → Providers**.
-5. Add callback URLs:
+2. Add its URL, publishable key and secret key to `.env.local`.
+3. Apply every SQL file in `supabase/migrations` in filename order.
+4. Enable the required providers in **Authentication → Sign In / Providers**.
+5. Add the following redirect URLs:
 
 ```text
 http://localhost:3000/auth/callback
 https://your-domain.com/auth/callback
 ```
 
-6. Register the first user, then promote that user once in SQL Editor:
+For Google OAuth, register this callback URL in Google Cloud:
+
+```text
+https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback
+```
+
+The migrations create:
+
+- User-owned learning tables and RLS policies.
+- Roadmaps, units, questions, sessions and strict completion rewards.
+- Competition, challenges, wallets, token unlocks and anti-spam functions.
+- Billing plans, subscriptions, transactions and webhook records.
+- AI feedback/training review tables.
+- Public avatar bucket with user-scoped upload/update/delete policies.
+
+Promote the first administrator once in Supabase SQL Editor:
 
 ```sql
 update public.profiles
@@ -142,84 +215,96 @@ where id = (
 );
 ```
 
-Never expose `SUPABASE_SECRET_KEY` to browser code.
+## AI Providers
 
-## Environment
+Lingora can automatically detect a provider from the selected provider, API key
+prefix, model name or custom Base URL.
 
-```dotenv
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+| Provider | Environment variable |
+| --- | --- |
+| Gemini | `GEMINI_API_KEY` |
+| Groq | `GROQ_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+| OpenRouter | `OPENROUTER_API_KEY` |
+| Anthropic | `ANTHROPIC_API_KEY` |
+| Compatible API | Custom Base URL and model in Settings |
 
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-SUPABASE_SECRET_KEY=
+Retryable provider failures such as HTTP `429`, `500`, `502`, `503` and `504`
+use bounded retries and return actionable messages to the interface.
 
-OPENAI_API_KEY=
-GEMINI_API_KEY=
-GROQ_API_KEY=
-OPENROUTER_API_KEY=
-ANTHROPIC_API_KEY=
+## Speech Recognition
 
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-```
+Speaking practice uses the browser Web Speech API.
+
+- Use a current Chrome or Edge browser.
+- The page must run on HTTPS or `localhost`.
+- Microphone permission must be allowed for the site.
+- Browser speech transcription may require Internet even after microphone
+  permission succeeds.
+- VPNs, firewalls or restricted networks can block the browser speech service.
+
+Settings includes diagnostics for network state, secure context, microphone,
+speech support, cookies and server AI providers.
 
 ## Stripe Billing
 
-Lingora uses Stripe Checkout for recurring subscriptions and Stripe Customer
-Portal for payment-method updates, invoices and cancellation.
+Lingora uses Stripe Checkout for subscriptions and token purchases, Stripe
+Customer Portal for account management, and signed webhooks for synchronization.
 
-1. Add the Stripe test secret key to `STRIPE_SECRET_KEY`.
-2. Create a webhook endpoint pointing to
-   `https://your-domain.com/api/billing/webhook`.
-3. Subscribe it to `checkout.session.completed`,
-   `customer.subscription.created`, `customer.subscription.updated`,
-   `customer.subscription.deleted`, `invoice.paid` and
-   `invoice.payment_failed`.
-4. Copy the webhook signing secret to `STRIPE_WEBHOOK_SECRET`.
-5. Configure Stripe Customer Portal in the Stripe Dashboard.
+Create a webhook endpoint:
 
-For local webhook testing:
+```text
+https://your-domain.com/api/billing/webhook
+```
+
+Subscribe it to:
+
+```text
+checkout.session.completed
+customer.subscription.created
+customer.subscription.updated
+customer.subscription.deleted
+invoice.paid
+invoice.payment_failed
+```
+
+Local webhook forwarding:
 
 ```bash
 stripe listen --forward-to localhost:3000/api/billing/webhook
 ```
 
-The default monthly catalog is Basic (`99,000 VND` / `$4.99`), Plus
-(`199,000 VND` / `$8.99`) and Pro (`399,000 VND` / `$16.99`). Edit
-`public.billing_plans` to change prices or limits.
-
-Every plan supports card payment and a one-time three-day trial without a card.
-Admin accounts also see a developer-only no-card Checkout button while the
-server uses an `sk_test_` Stripe Sandbox key.
-
-Users may alternatively enter an AI key for the current browser tab. It is
-stored in `sessionStorage`, sent only to a server Route Handler, and never saved
-to Supabase.
+The seeded catalog includes Basic, Plus and Pro plans. Prices and limits are
+stored in `public.billing_plans` and can be managed from the database/admin
+workflow. Test-mode admin accounts can use the developer checkout flow; normal
+users can use card checkout or the one-time three-day trial flow.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  Browser["Next.js UI"] --> Proxy["Supabase SSR Proxy"]
-  Proxy --> Auth["Supabase Auth"]
-  Browser --> Routes["Server Actions / Route Handlers"]
-  Routes --> DAL["Authorization DAL"]
-  DAL --> RLS["Postgres + RLS"]
-  Routes --> Gateway["AI Provider Gateway"]
-  Gateway --> Models["Gemini / Groq / OpenAI / OpenRouter / Anthropic"]
-  RLS --> Feedback["Consented AI Feedback"]
-  Feedback --> Anon["PII filtering + review queue"]
-  Anon --> Export["Admin-approved JSONL export"]
+  UI["Next.js UI"] --> SSR["Supabase SSR auth"]
+  SSR --> Auth["Supabase Auth"]
+  UI --> API["Route Handlers / Server Actions"]
+  API --> Access["Server authorization"]
+  Access --> DB["PostgreSQL + RLS"]
+  API --> AI["AI provider gateway"]
+  AI --> Models["Gemini / Groq / OpenAI / OpenRouter / Anthropic"]
+  API --> Stripe["Stripe Checkout + Webhooks"]
+  DB --> Review["Consented feedback review"]
+  Review --> Export["Admin-approved anonymized export"]
 ```
 
-Security is enforced at multiple layers:
+Security is enforced through:
 
-1. Supabase validates SSR tokens with `getClaims()`.
-2. Pages and APIs verify viewer/admin permissions server-side.
-3. Postgres RLS enforces row ownership.
-4. Secret-key admin operations only run on the server.
+1. SSR token validation with Supabase `getClaims()`.
+2. Server-side authorization for pages and mutations.
+3. PostgreSQL RLS for user-owned rows.
+4. User-scoped Storage policies for avatar mutations.
+5. Server-only service, AI and Stripe secrets.
+6. Idempotency and database claims for rewards and payments.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for additional details.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Development
 
@@ -229,33 +314,35 @@ pnpm typecheck
 pnpm test
 pnpm build
 
-# Run everything
+# Run the complete quality gate
 pnpm check
 ```
 
-## Roadmap
+The GitHub Actions workflow runs the same quality gate for pull requests and
+pushes to `main`.
 
-- Real streaming responses and resumable chat sessions.
-- Speech-to-text provider adapters and pronunciation scoring.
-- Background document chunking and embeddings jobs.
-- Admin content authoring and training-candidate review workflow.
-- More complete translated content and locale-aware course packs.
-- Self-hosted model evaluation and fine-tuning recipes.
+## Current Limitations
+
+- Web Speech availability depends on browser and network services.
+- AI responses are request/response based; token streaming is not implemented.
+- Document extraction runs in the request lifecycle rather than a background
+  worker queue.
+- Complete translated learning packs still depend on published content.
 
 ## Contributing
 
-Issues, translations, course content and provider adapters are welcome. Read
-[CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+Bug fixes, translations, CEFR content, accessibility improvements and provider
+adapters are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a
+pull request.
 
-If Lingora is useful, consider starring the repository, sharing a screenshot,
-or opening a focused issue. Specific feedback is more useful than generic
-promotion.
+If Lingora is useful, star the repository, share a screenshot or open a focused
+issue with reproducible details.
 
 ## Security
 
-Please do not disclose vulnerabilities in public issues. Follow
-[SECURITY.md](SECURITY.md).
+Do not disclose authentication bypasses, RLS failures, secret exposure or
+cross-user access in public issues. Follow [SECURITY.md](SECURITY.md).
 
 ## License
 
-Distributed under the repository [LICENSE](LICENSE).
+Lingora is distributed under the [GNU General Public License v3.0](LICENSE).
