@@ -320,6 +320,18 @@ export async function getLearningWorkspaceData(
           .order("created_at", { ascending: false })
           .limit(120)
       : Promise.resolve({ data: [], error: null });
+  const reviewQueuePromise =
+    kind === "practice"
+      ? admin
+          .from("user_question_review_queue")
+          .select(
+            "question_id,source_unit_id,reason,last_score,updated_at,practice_questions(prompt,skill,difficulty)",
+          )
+          .eq("user_id", viewer.id)
+          .is("mastered_at", null)
+          .order("updated_at", { ascending: false })
+          .limit(30)
+      : Promise.resolve({ data: [], error: null });
   const [
     vocabulary,
     documents,
@@ -328,6 +340,7 @@ export async function getLearningWorkspaceData(
     reviews,
     results,
     progress,
+    reviewQueue,
   ] = await Promise.all([
     vocabularyPromise,
     documentsPromise,
@@ -336,8 +349,9 @@ export async function getLearningWorkspaceData(
     Promise.resolve({ data: [], error: null }),
     Promise.resolve({ data: [], error: null }),
     progressPromise,
+    reviewQueuePromise,
   ]);
-  const resultsToCheck = [vocabulary, documents, questions, attempts, reviews, results, progress];
+  const resultsToCheck = [vocabulary, documents, questions, attempts, reviews, results, progress, reviewQueue];
   resultsToCheck.forEach((result) => assertNoError(result.error, "Dữ liệu học tập"));
   const attemptStats = new Map<string, { best: number; last: string; count: number }>();
   (attempts.data ?? []).forEach((attempt) => {
@@ -380,6 +394,7 @@ export async function getLearningWorkspaceData(
     reviews: reviews.data ?? [],
     quizResults: results.data ?? [],
     progress: progress.data ?? [],
+    reviewQueue: reviewQueue.data ?? [],
   };
 }
 

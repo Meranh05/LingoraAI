@@ -15,8 +15,15 @@ const schema = z.object({
   durationSeconds: z.number().int().min(0).max(14_400).default(0),
   module: z.enum(["practice", "quiz", "competition"]).default("practice"),
   challengeId: z.uuid().optional(),
+  unitId: z.uuid().optional(),
+  unitSessionId: z.uuid().optional(),
   idempotencyKey: z.uuid(),
-});
+}).refine(
+  (value) =>
+    (!value.unitId && !value.unitSessionId) ||
+    Boolean(value.unitId && value.unitSessionId),
+  { message: "unitId và unitSessionId phải được gửi cùng nhau." },
+);
 
 export async function POST(request: Request) {
   const viewer = await getOptionalViewer();
@@ -30,6 +37,28 @@ export async function POST(request: Request) {
     .single();
   if (questionError || !question) {
     return NextResponse.json({ error: "Không tìm thấy câu hỏi." }, { status: 404 });
+  }
+  if (input.unitId && question.unit_id !== input.unitId) {
+    return NextResponse.json(
+      { error: "Câu hỏi không thuộc chặng học hiện tại." },
+      { status: 403 },
+    );
+  }
+  if (input.unitId && input.unitSessionId) {
+    const { data: activeSession } = await admin
+      .from("learning_unit_sessions")
+      .select("id")
+      .eq("id", input.unitSessionId)
+      .eq("user_id", viewer.id)
+      .eq("unit_id", input.unitId)
+      .eq("status", "active")
+      .maybeSingle();
+    if (!activeSession) {
+      return NextResponse.json(
+        { error: "Phiên học không còn hoạt động. Hãy mở lại chặng." },
+        { status: 403 },
+      );
+    }
   }
   if (question.unit_id && input.module !== "competition") {
     const { data: unit } = await admin
@@ -149,6 +178,21 @@ export async function POST(request: Request) {
     | undefined;
   if (!secured) {
     return NextResponse.json({ error: "Không thể ghi nhận lượt học." }, { status: 500 });
+  }
+  if (input.unitId && input.unitSessionId) {
+    const { error: sessionError } = await admin.rpc(
+      "attach_attempt_to_unit_session",
+      {
+        target_user_id: viewer.id,
+        target_session_id: input.unitSessionId,
+        target_unit_id: input.unitId,
+        target_question_id: question.id,
+        target_attempt_id: secured.attempt_id,
+      },
+    );
+    if (sessionError) {
+      return NextResponse.json({ error: sessionError.message }, { status: 403 });
+    }
   }
   if (input.module === "quiz" && score !== null) {
     await admin.from("quiz_results").insert({

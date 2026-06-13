@@ -1,13 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   BarChart3,
   BookOpen,
   BrainCircuit,
+  Bookmark,
+  BookmarkCheck,
   CheckCircle2,
   Clock3,
   Headphones,
@@ -37,6 +39,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
@@ -94,6 +103,27 @@ type WorkspaceData = {
     total_minutes: number;
     total_attempts: number;
   }>;
+};
+
+type SessionAnswer = {
+  questionId: string;
+  prompt: string;
+  answer: string;
+  correctAnswer: string;
+  score: number;
+  difficult: boolean;
+};
+
+type UnitCompletion = {
+  passed: boolean;
+  score: number;
+  correct: number;
+  total: number;
+  xp: number;
+  tokens: number;
+  nextUnitId: string | null;
+  firstCompletion?: boolean;
+  requiredScore: number;
 };
 
 const definitions = {
@@ -179,6 +209,15 @@ export function LearningWorkspace({
   const [sessionComplete, setSessionComplete] = useState(false);
   const [sessionStartedAt, setSessionStartedAt] = useState(nowMs);
   const [sessionElapsedMinutes, setSessionElapsedMinutes] = useState(1);
+  const [unitSessionId, setUnitSessionId] = useState<string>();
+  const [unitSessionError, setUnitSessionError] = useState("");
+  const [unitCompletion, setUnitCompletion] = useState<UnitCompletion>();
+  const [nextUnit, setNextUnit] = useState<{
+    id: string;
+    title: Record<string, string>;
+  } | null>(null);
+  const [sessionAnswers, setSessionAnswers] = useState<SessionAnswer[]>([]);
+  const sessionStartedRef = useRef(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [showBack, setShowBack] = useState(false);
   const [microphoneStatus, setMicrophoneStatus] = useState<
@@ -191,13 +230,13 @@ export function LearningWorkspace({
   const questions = useMemo(
     () =>
       data.questions.filter((question) =>
-        challenge
+        lesson || challenge
           ? true
           : kind === "quiz"
           ? !["essay", "speaking"].includes(question.question_type)
           : question.skill === skill,
       ),
-    [challenge, data.questions, kind, skill],
+    [challenge, data.questions, kind, lesson, skill],
   );
   const [questionQueue, setQuestionQueue] = useState(() =>
     questions.map((item) => item.id),
@@ -207,6 +246,36 @@ export function LearningWorkspace({
   const sessionAccuracy = sessionAnswered
     ? Math.round((sessionCorrect / sessionAnswered) * 100)
     : 0;
+
+  useEffect(() => {
+    if (!lesson || sessionStartedRef.current) return;
+    const lessonId = lesson.id;
+    sessionStartedRef.current = true;
+    let active = true;
+
+    async function startUnitSession() {
+      const response = await fetch("/api/roadmap/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start", unitId: lessonId }),
+      });
+      const payload = (await response.json()) as {
+        sessionId?: string;
+        error?: string;
+      };
+      if (!active) return;
+      if (!response.ok || !payload.sessionId) {
+        setUnitSessionError(payload.error ?? "Không thể bắt đầu chặng học.");
+        return;
+      }
+      setUnitSessionId(payload.sessionId);
+    }
+
+    void startUnitSession();
+    return () => {
+      active = false;
+    };
+  }, [lesson]);
 
   async function addWord() {
     if (!word.trim() || !meaning.trim()) return toast.error("Nhập từ và nghĩa.");
@@ -252,6 +321,11 @@ export function LearningWorkspace({
 
   async function submitAttempt() {
     if (!question || !answer.trim()) return;
+    if (lesson && !unitSessionId) {
+      return toast.error(
+        unitSessionError || "Phiên chặng chưa sẵn sàng. Hãy thử tải lại trang.",
+      );
+    }
     setLoading(true);
     const response = await fetch("/api/practice/attempt", {
       method: "POST",
@@ -263,6 +337,8 @@ export function LearningWorkspace({
         module: challenge ? "competition" : kind === "quiz" ? "quiz" : "practice",
         challengeId: challenge?.id,
         idempotencyKey,
+        unitId: lesson?.id,
+        unitSessionId: lesson ? unitSessionId : undefined,
       }),
     });
     const payload = (await response.json()) as {
@@ -285,10 +361,30 @@ export function LearningWorkspace({
     setRewards(payload.rewards ?? { xp: 0, tokens: 0 });
     setRewardEligible(payload.rewardEligible ?? true);
     setCorrectAnswer(payload.correctAnswer ?? "");
+    const attemptScore = payload.score ?? 0;
+    const displayAnswer =
+      question.options?.find((option) => option.id === answer)?.text ?? answer;
+    setSessionAnswers((current) => {
+      const nextAnswer: SessionAnswer = {
+        questionId: question.id,
+        prompt: promptText(question.prompt, locale),
+        answer: displayAnswer,
+        correctAnswer: payload.correctAnswer ?? "",
+        score: attemptScore,
+        difficult: attemptScore < 70,
+      };
+      const existingIndex = current.findIndex(
+        (item) => item.questionId === question.id,
+      );
+      if (existingIndex < 0) return [...current, nextAnswer];
+      const next = [...current];
+      next[existingIndex] = nextAnswer;
+      return next;
+    });
     setSessionAnswered((current) => current + 1);
     setSessionXp((current) => current + (payload.rewards?.xp ?? 0));
     setSessionTokens((current) => current + (payload.rewards?.tokens ?? 0));
-    if ((payload.score ?? 0) >= 70) {
+    if (attemptScore >= 70) {
       setCombo((current) => current + 1);
       setSessionCorrect((current) => current + 1);
     } else {
@@ -300,13 +396,65 @@ export function LearningWorkspace({
           : current,
       );
     }
-    play((payload.score ?? 0) >= 70 ? "complete" : "error");
+    play(attemptScore >= 70 ? "complete" : "error");
     toast.success("Đã lưu kết quả luyện tập.");
     router.refresh();
   }
 
-  function nextQuestion() {
-    if (hearts <= 0 || questionIndex >= questionQueue.length - 1) {
+  async function toggleDifficult() {
+    if (!question || score === null) return;
+    const currentAnswer = sessionAnswers.find(
+      (item) => item.questionId === question.id,
+    );
+    const difficult = !(currentAnswer?.difficult ?? score < 70);
+    const response = await fetch("/api/practice/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ questionId: question.id, difficult, score }),
+    });
+    if (!response.ok) {
+      const payload = (await response.json()) as { error?: string };
+      return toast.error(payload.error ?? "Không thể cập nhật danh sách ôn lại.");
+    }
+    setSessionAnswers((current) =>
+      current.map((item) =>
+        item.questionId === question.id ? { ...item, difficult } : item,
+      ),
+    );
+    toast.success(
+      difficult ? "Đã thêm câu này vào danh sách ôn lại." : "Đã bỏ khỏi danh sách ôn lại.",
+    );
+  }
+
+  async function finalizeUnitSession() {
+    if (!unitSessionId) {
+      toast.error("Không tìm thấy phiên chặng đang học.");
+      return false;
+    }
+    setLoading(true);
+    const response = await fetch("/api/roadmap/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "finalize", sessionId: unitSessionId }),
+    });
+    const payload = (await response.json()) as {
+      error?: string;
+      result?: UnitCompletion;
+      nextUnit?: { id: string; title: Record<string, string> } | null;
+    };
+    setLoading(false);
+    if (!response.ok || !payload.result) {
+      toast.error(payload.error ?? "Không thể hoàn tất chặng học.");
+      return false;
+    }
+    setUnitCompletion(payload.result);
+    setNextUnit(payload.nextUnit ?? null);
+    return true;
+  }
+
+  async function nextQuestion() {
+    if ((!lesson && hearts <= 0) || questionIndex >= questionQueue.length - 1) {
+      if (lesson && !(await finalizeUnitSession())) return;
       setSessionElapsedMinutes(
         Math.max(1, Math.round((nowMs() - sessionStartedAt) / 60_000)),
       );
@@ -338,7 +486,25 @@ export function LearningWorkspace({
     setStartedAt(nowMs());
   }
 
-  function restartSession() {
+  async function restartSession() {
+    if (lesson) {
+      setLoading(true);
+      const response = await fetch("/api/roadmap/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start", unitId: lesson.id }),
+      });
+      const payload = (await response.json()) as {
+        sessionId?: string;
+        error?: string;
+      };
+      setLoading(false);
+      if (!response.ok || !payload.sessionId) {
+        return toast.error(payload.error ?? "Không thể tạo phiên chặng mới.");
+      }
+      setUnitSessionId(payload.sessionId);
+      setUnitSessionError("");
+    }
     setQuestionQueue(questions.map((item) => item.id));
     setQuestionIndex(0);
     setHearts(5);
@@ -350,6 +516,9 @@ export function LearningWorkspace({
     setSessionComplete(false);
     setSessionStartedAt(nowMs());
     setSessionElapsedMinutes(1);
+    setSessionAnswers([]);
+    setUnitCompletion(undefined);
+    setNextUnit(null);
     resetCurrentQuestion();
   }
 
@@ -651,7 +820,136 @@ export function LearningWorkspace({
           </CardContent>
         </Card>
       ) : null}
-      {sessionComplete ? (
+      <Dialog open={Boolean(lesson && sessionComplete && unitCompletion)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          {unitCompletion ? (
+            <>
+              <DialogHeader>
+                <div
+                  className={`mb-2 flex size-14 items-center justify-center rounded-2xl ${
+                    unitCompletion.passed
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {unitCompletion.passed ? (
+                    <Trophy className="size-7" />
+                  ) : (
+                    <Target className="size-7" />
+                  )}
+                </div>
+                <DialogTitle className="text-2xl font-black">
+                  {unitCompletion.passed
+                    ? `Hoàn thành chặng ${lesson?.position}`
+                    : `Chặng ${lesson?.position} chưa đạt`}
+                </DialogTitle>
+                <DialogDescription>
+                  {unitCompletion.passed
+                    ? "Tiến trình đã được lưu và chặng kế tiếp đã được mở khóa."
+                    : `Bạn cần đạt ${unitCompletion.requiredScore}% và đúng ít nhất 60% số câu để mở chặng kế tiếp.`}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <SessionMetric
+                  icon={Target}
+                  label="Điểm chặng"
+                  value={`${Math.round(unitCompletion.score)}%`}
+                  tone="sky"
+                />
+                <SessionMetric
+                  icon={CheckCircle2}
+                  label="Câu đạt"
+                  value={`${unitCompletion.correct}/${unitCompletion.total}`}
+                  tone="emerald"
+                />
+                <SessionMetric
+                  icon={Zap}
+                  label="Thưởng XP"
+                  value={`+${unitCompletion.xp}`}
+                  tone="amber"
+                />
+                <SessionMetric
+                  icon={BookmarkCheck}
+                  label="Câu cần ôn"
+                  value={`${sessionAnswers.filter((item) => item.difficult).length}`}
+                  tone="violet"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <h3 className="font-black">Tổng kết câu trả lời</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Câu sai và câu được đánh dấu khó đã được lưu để ôn lại.
+                  </p>
+                </div>
+                {sessionAnswers.map((item, index) => (
+                  <div
+                    key={item.questionId}
+                    className={`rounded-2xl border p-4 ${
+                      item.score >= 70
+                        ? "border-emerald-100 bg-emerald-50/60"
+                        : "border-rose-100 bg-rose-50/60"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                          Câu {index + 1} · {Math.round(item.score)} điểm
+                        </p>
+                        <p className="mt-1 font-bold">{item.prompt}</p>
+                      </div>
+                      {item.difficult ? (
+                        <Badge variant="outline">
+                          <BookmarkCheck className="size-3" /> Cần ôn lại
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                      <p>
+                        <span className="font-semibold text-muted-foreground">
+                          Bạn trả lời:
+                        </span>{" "}
+                        {item.answer || "Chưa có câu trả lời"}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-muted-foreground">
+                          Đáp án:
+                        </span>{" "}
+                        {item.correctAnswer || "Được chấm theo tiêu chí bài"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <Button variant="outline" onClick={() => void restartSession()}>
+                  <RotateCcw /> Làm lại chặng
+                </Button>
+                {unitCompletion.passed ? (
+                  <Button
+                    onClick={() =>
+                      router.push(
+                        nextUnit
+                          ? `/learn/${nextUnit.id}`
+                          : "/roadmap",
+                      )
+                    }
+                  >
+                    {nextUnit
+                      ? `Qua chặng: ${promptText(nextUnit.title, locale)}`
+                      : "Về lộ trình"}
+                    <ArrowRight />
+                  </Button>
+                ) : null}
+              </div>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      {sessionComplete && !lesson ? (
         <Card className="relative mx-auto w-full max-w-4xl overflow-hidden border-0 bg-white/90 shadow-[0_28px_80px_-36px_rgba(14,116,144,0.55)]">
           <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-500" />
           <CardContent className="grid gap-8 p-6 md:grid-cols-[1fr_260px] md:p-10">
@@ -679,7 +977,7 @@ export function LearningWorkspace({
                 <SessionMetric icon={Clock3} label={t("workspace.studyTime")} value={t("roadmap.minutes", { count: sessionElapsedMinutes })} tone="violet" />
               </div>
               <div className="mt-7 flex flex-wrap gap-3">
-                <Button size="lg" onClick={restartSession}>
+                <Button size="lg" onClick={() => void restartSession()}>
                   <RotateCcw /> {t("workspace.practiceAgain")}
                 </Button>
                 <Button
@@ -853,6 +1151,23 @@ export function LearningWorkspace({
                     {feedback ? <p className="mt-2 text-sm font-normal leading-6 opacity-80">{feedback}</p> : null}
                   </div>
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => void toggleDifficult()}
+                >
+                  {sessionAnswers.find((item) => item.questionId === question.id)
+                    ?.difficult ? (
+                    <BookmarkCheck />
+                  ) : (
+                    <Bookmark />
+                  )}
+                  {sessionAnswers.find((item) => item.questionId === question.id)
+                    ?.difficult
+                    ? "Đã thêm vào ôn lại"
+                    : "Đánh dấu câu khó"}
+                </Button>
               </div>
             ) : null}
             <div className="flex flex-col-reverse gap-3 border-t pt-5 sm:flex-row sm:items-center">
@@ -861,14 +1176,15 @@ export function LearningWorkspace({
                   <Button variant="outline" size="lg" onClick={resetCurrentQuestion}>
                     <RotateCcw /> {t("common.retry")}
                   </Button>
-                  <Button className="sm:ml-auto sm:min-w-44" size="lg" onClick={submitAttempt} disabled={!answer.trim() || loading || hearts <= 0}>
+                  <Button className="sm:ml-auto sm:min-w-44" size="lg" onClick={submitAttempt} disabled={!answer.trim() || loading || (!lesson && hearts <= 0) || Boolean(lesson && !unitSessionId)}>
                     {loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
                     {t("workspace.submit")}
                   </Button>
                 </>
               ) : (
-                <Button className="sm:ml-auto sm:min-w-44" size="lg" onClick={nextQuestion}>
-                  {hearts <= 0 || questionIndex >= questionQueue.length - 1
+                <Button className="sm:ml-auto sm:min-w-44" size="lg" onClick={() => void nextQuestion()} disabled={loading}>
+                  {loading ? <Loader2 className="animate-spin" /> : null}
+                  {(!lesson && hearts <= 0) || questionIndex >= questionQueue.length - 1
                     ? t("workspace.finishSession")
                     : t("workspace.next")}
                   <ArrowRight />
