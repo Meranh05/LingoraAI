@@ -140,16 +140,22 @@ export function MascotCompanion() {
     }
   }
 
-  if (pathname.startsWith("/admin") || pathname.startsWith("/learn/")) return null;
+  if (
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/learn/") ||
+    pathname.startsWith("/ai-tutor")
+  ) {
+    return null;
+  }
 
   return (
     <div className="fixed bottom-3 right-3 z-40 flex flex-col items-end gap-3 sm:bottom-5 sm:right-5">
       {open ? (
         <section
           aria-label={t("mascot.chatTitle")}
-          className="flex h-[min(520px,calc(100dvh-7rem))] w-[min(380px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl border border-sky-100 bg-white/95 shadow-2xl shadow-sky-300/40 backdrop-blur-xl"
+          className="flex h-[min(560px,calc(100dvh-7rem))] w-[min(400px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[2rem] border border-white/80 bg-white/95 shadow-[0_32px_90px_-30px_rgba(14,116,144,0.5)] backdrop-blur-xl"
         >
-          <header className="flex items-center gap-3 border-b border-sky-100 bg-gradient-to-r from-sky-50 to-indigo-50 px-4 py-3">
+          <header className="relative flex items-center gap-3 overflow-hidden border-b border-sky-100 bg-gradient-to-r from-sky-50 via-cyan-50 to-indigo-50 px-4 py-3.5">
             <span className="relative size-12 shrink-0 rounded-2xl bg-white shadow-sm">
               <MascotSprite
                 mood={state[1] as MascotMood}
@@ -157,8 +163,9 @@ export function MascotCompanion() {
               />
             </span>
             <div className="min-w-0 flex-1">
-              <strong className="block text-sm text-sky-900">
+              <strong className="flex items-center gap-2 text-sm text-sky-950">
                 {t("mascot.chatTitle")}
+                <span className="size-2 rounded-full bg-emerald-500" />
               </strong>
               <span className="block truncate text-xs text-sky-700">
                 {t("mascot.chatSubtitle")}
@@ -177,14 +184,14 @@ export function MascotCompanion() {
 
           <div
             ref={messagesRef}
-            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
+            className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-[radial-gradient(circle_at_top_right,rgba(186,230,253,0.24),transparent_34%)] p-4"
           >
             <div className="flex items-end gap-2">
               <MascotSprite
                 mood={state[1] as MascotMood}
                 className="size-9"
               />
-              <p className="max-w-[82%] rounded-2xl rounded-bl-md border border-sky-100 bg-sky-50 px-3 py-2 text-sm leading-5 text-slate-700">
+              <p className="max-w-[82%] rounded-3xl rounded-bl-md border border-sky-100 bg-white px-3.5 py-2.5 text-sm leading-5 text-slate-700 shadow-sm">
                 {chatMessages.length
                   ? t("mascot.welcomeBack")
                   : t(state[2] as string)}
@@ -203,10 +210,10 @@ export function MascotCompanion() {
                 ) : null}
                 <p
                   className={cn(
-                    "max-w-[82%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-5",
+                    "max-w-[82%] whitespace-pre-wrap rounded-3xl px-3.5 py-2.5 text-sm leading-5 shadow-sm",
                     message.role === "user"
-                      ? "rounded-br-md bg-primary text-primary-foreground"
-                      : "rounded-bl-md border border-sky-100 bg-sky-50 text-slate-700",
+                      ? "rounded-br-md bg-gradient-to-br from-sky-500 to-blue-600 text-white"
+                      : "rounded-bl-md border border-sky-100 bg-white text-slate-700",
                   )}
                 >
                   {message.content}
@@ -227,8 +234,8 @@ export function MascotCompanion() {
             ) : null}
           </div>
 
-          <form onSubmit={submit} className="border-t border-sky-100 bg-white p-3">
-            <div className="flex items-end gap-2">
+          <form onSubmit={submit} className="border-t border-sky-100 bg-white/95 p-3">
+            <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm focus-within:border-sky-300 focus-within:ring-4 focus-within:ring-sky-100/70">
               <Textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
@@ -239,11 +246,12 @@ export function MascotCompanion() {
                   }
                 }}
                 placeholder={t("mascot.chatPlaceholder")}
-                className="max-h-28 min-h-11 resize-none bg-sky-50/60"
+                className="max-h-28 min-h-11 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
               />
               <Button
                 type="submit"
                 size="icon"
+                className="shrink-0 rounded-xl"
                 disabled={loading || !input.trim()}
               >
                 <Send />
