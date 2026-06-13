@@ -9,5 +9,5 @@ export const metadata: Metadata = {
 
 export default async function AiTutorPage() {
   const viewer = await requireViewer();
-  return <AiTutor initial={await getTutorData(viewer)} />;
+  return <AiTutor viewer={viewer} initial={await getTutorData(viewer)} />;
 }

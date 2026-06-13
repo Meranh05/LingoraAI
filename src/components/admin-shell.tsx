@@ -15,7 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import type { Viewer } from "@/lib/auth";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -95,6 +95,9 @@ function Sidebar({ viewer }: { viewer: Viewer }) {
         </Button>
         <div className="flex items-center gap-3 rounded-2xl bg-slate-800 p-3">
           <Avatar className="size-9">
+            {viewer.avatarUrl ? (
+              <AvatarImage src={viewer.avatarUrl} alt={viewer.fullName} />
+            ) : null}
             <AvatarFallback className="bg-cyan-500 text-white">
               {initials(viewer.fullName)}
             </AvatarFallback>

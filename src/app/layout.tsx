@@ -42,7 +42,7 @@ export default async function RootLayout({
       <body className="min-h-full" suppressHydrationWarning>
         <TooltipProvider>
           <LocaleProvider initialLocale={viewer?.locale ?? "vi"}>
-            <ExperienceProvider>
+            <ExperienceProvider initialPreferences={viewer?.preferences}>
               <AppShell viewer={viewer}>{children}</AppShell>
               <Toaster richColors position="top-right" />
             </ExperienceProvider>

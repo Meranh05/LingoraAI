@@ -14,8 +14,12 @@ type SoundName = "tap" | "success" | "error" | "complete";
 type ExperienceContextValue = {
   soundEnabled: boolean;
   motionEnabled: boolean;
+  showMascot: boolean;
+  compactMode: boolean;
   setSoundEnabled: (enabled: boolean) => void;
   setMotionEnabled: (enabled: boolean) => void;
+  setShowMascot: (enabled: boolean) => void;
+  setCompactMode: (enabled: boolean) => void;
   play: (sound: SoundName) => void;
 };
 
@@ -43,11 +47,22 @@ function tone(
 
 export function ExperienceProvider({
   children,
+  initialPreferences,
 }: {
   children: React.ReactNode;
+  initialPreferences?: {
+    showMascot: boolean;
+    compactMode: boolean;
+  };
 }) {
   const [soundEnabled, setSoundEnabledState] = useState(false);
   const [motionEnabled, setMotionEnabledState] = useState(true);
+  const [showMascot, setShowMascotState] = useState(
+    initialPreferences?.showMascot ?? true,
+  );
+  const [compactMode, setCompactModeState] = useState(
+    initialPreferences?.compactMode ?? false,
+  );
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -56,13 +71,29 @@ export function ExperienceProvider({
       setMotionEnabledState(
         localStorage.getItem("lingora:motion") !== "false" && !reduced,
       );
+      const mascotPreference = localStorage.getItem("lingora:mascot");
+      const compactPreference = localStorage.getItem("lingora:compact");
+      setShowMascotState(
+        mascotPreference === null
+          ? initialPreferences?.showMascot ?? true
+          : mascotPreference !== "false",
+      );
+      setCompactModeState(
+        compactPreference === null
+          ? initialPreferences?.compactMode ?? false
+          : compactPreference === "true",
+      );
     });
     return () => window.cancelAnimationFrame(frame);
-  }, []);
+  }, [initialPreferences?.compactMode, initialPreferences?.showMascot]);
 
   useEffect(() => {
     document.documentElement.dataset.motion = motionEnabled ? "full" : "reduced";
   }, [motionEnabled]);
+
+  useEffect(() => {
+    document.documentElement.dataset.density = compactMode ? "compact" : "comfortable";
+  }, [compactMode]);
 
   const setSoundEnabled = useCallback((enabled: boolean) => {
     setSoundEnabledState(enabled);
@@ -72,6 +103,16 @@ export function ExperienceProvider({
   const setMotionEnabled = useCallback((enabled: boolean) => {
     setMotionEnabledState(enabled);
     localStorage.setItem("lingora:motion", String(enabled));
+  }, []);
+
+  const setShowMascot = useCallback((enabled: boolean) => {
+    setShowMascotState(enabled);
+    localStorage.setItem("lingora:mascot", String(enabled));
+  }, []);
+
+  const setCompactMode = useCallback((enabled: boolean) => {
+    setCompactModeState(enabled);
+    localStorage.setItem("lingora:compact", String(enabled));
   }, []);
 
   const play = useCallback(
@@ -115,14 +156,22 @@ export function ExperienceProvider({
     () => ({
       soundEnabled,
       motionEnabled,
+      showMascot,
+      compactMode,
       setSoundEnabled,
       setMotionEnabled,
+      setShowMascot,
+      setCompactMode,
       play,
     }),
     [
       motionEnabled,
+      showMascot,
+      compactMode,
       play,
+      setCompactMode,
       setMotionEnabled,
+      setShowMascot,
       setSoundEnabled,
       soundEnabled,
     ],

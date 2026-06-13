@@ -39,6 +39,8 @@ import {
 import { useLocale } from "@/components/locale-provider";
 import { useExperience } from "@/components/experience-provider";
 import { MascotSprite } from "@/components/lingora-mascot";
+import type { Viewer } from "@/lib/auth";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -49,8 +51,10 @@ const quickPrompts = [
 ];
 
 export function AiTutor({
+  viewer,
   initial,
 }: {
+  viewer: Viewer;
   initial: {
     documents: Array<{ id: string; file_name: string; status: string }>;
     sessionId: string | null;
@@ -276,9 +280,18 @@ export function AiTutor({
                   </p>
                 </div>
                 {message.role === "user" ? (
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 ring-1 ring-slate-200">
-                    <User className="size-4" />
-                  </span>
+                  <Avatar className="size-10 rounded-2xl">
+                    {viewer.avatarUrl ? (
+                      <AvatarImage
+                        src={viewer.avatarUrl}
+                        alt={viewer.fullName}
+                        className="rounded-2xl"
+                      />
+                    ) : null}
+                    <AvatarFallback className="rounded-2xl bg-slate-100 text-slate-600">
+                      <User className="size-4" />
+                    </AvatarFallback>
+                  </Avatar>
                 ) : null}
               </div>
             ))}

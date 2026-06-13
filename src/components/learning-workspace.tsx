@@ -221,8 +221,11 @@ export function LearningWorkspace({
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [showBack, setShowBack] = useState(false);
   const [microphoneStatus, setMicrophoneStatus] = useState<
-    "idle" | "requesting" | "listening" | "granted" | "denied" | "unsupported"
+    "idle" | "requesting" | "listening" | "granted" | "denied" | "unsupported" | "offline"
   >("idle");
+  const [microphoneMessage, setMicrophoneMessage] = useState(
+    "Nhấn kiểm tra để cấp quyền microphone trước khi luyện nói.",
+  );
   const [navigationKey, descriptionKey, Icon] = definitions[kind];
   const title = navigationLabels[locale][navigationKey];
   const description = t(descriptionKey);
@@ -604,8 +607,17 @@ export function LearningWorkspace({
   }
 
   async function startRecognition() {
+    if (!navigator.onLine) {
+      setMicrophoneStatus("offline");
+      setMicrophoneMessage(
+        "Thiết bị đang offline. Nhận giọng nói của Chrome/Edge cần Internet để chuyển âm thanh thành văn bản.",
+      );
+      toast.error("Không có kết nối mạng cho dịch vụ nhận giọng nói.");
+      return;
+    }
     if (!window.isSecureContext && window.location.hostname !== "localhost") {
       setMicrophoneStatus("unsupported");
+      setMicrophoneMessage("Hãy mở Lingora bằng HTTPS hoặc localhost để trình duyệt cho phép microphone.");
       toast.error("Microphone yêu cầu HTTPS hoặc localhost.");
       return;
     }
@@ -629,6 +641,7 @@ export function LearningWorkspace({
       speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
     if (!SpeechRecognition || !navigator.mediaDevices?.getUserMedia) {
       setMicrophoneStatus("unsupported");
+      setMicrophoneMessage("Trình duyệt này chưa hỗ trợ Web Speech. Hãy dùng Chrome hoặc Edge mới nhất.");
       toast.error(
         "Trình duyệt chưa hỗ trợ nhận giọng nói. Hãy dùng Chrome hoặc Edge mới nhất.",
       );
@@ -640,9 +653,17 @@ export function LearningWorkspace({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach((track) => track.stop());
       setMicrophoneStatus("granted");
+      setMicrophoneMessage("Microphone đã được cấp quyền. Bắt đầu nói sau khi trạng thái chuyển sang Đang nghe.");
     } catch (error) {
       setMicrophoneStatus("denied");
       const name = error instanceof DOMException ? error.name : "";
+      setMicrophoneMessage(
+        name === "NotAllowedError"
+          ? "Quyền đang bị chặn. Nhấn biểu tượng ổ khóa cạnh địa chỉ trang, chọn Microphone > Allow rồi tải lại."
+          : name === "NotFoundError"
+            ? "Không tìm thấy microphone. Hãy kết nối thiết bị thu âm và thử lại."
+            : "Không thể mở microphone. Kiểm tra thiết bị đầu vào và quyền của trình duyệt.",
+      );
       toast.error(
         name === "NotAllowedError"
           ? "Quyền microphone đang bị chặn. Mở biểu tượng ổ khóa trên thanh địa chỉ và chọn Allow."
@@ -657,13 +678,17 @@ export function LearningWorkspace({
     recognition.lang = "en-US";
     recognition.interimResults = false;
     recognition.continuous = false;
-    recognition.onstart = () => setMicrophoneStatus("listening");
+    recognition.onstart = () => {
+      setMicrophoneStatus("listening");
+      setMicrophoneMessage("Đang nghe... Hãy nói rõ câu tiếng Anh của bạn.");
+    };
     recognition.onend = () =>
       setMicrophoneStatus((current) =>
         current === "denied" ? "denied" : "granted",
       );
     recognition.onresult = (event) => {
       setAnswer(event.results[0][0].transcript);
+      setMicrophoneMessage("Đã nhận giọng nói và đưa vào ô câu trả lời.");
       play("success");
       toast.success("Đã nhận giọng nói.");
     };
@@ -675,13 +700,22 @@ export function LearningWorkspace({
           "Dịch vụ nhận giọng nói bị trình duyệt hoặc hệ điều hành chặn.",
         "audio-capture": "Không thu được âm thanh từ microphone.",
         "no-speech": "Không nghe thấy giọng nói. Hãy nói gần microphone hơn.",
-        network: "Dịch vụ nhận giọng nói cần kết nối mạng.",
+        network:
+          "Không thể kết nối dịch vụ nhận giọng nói. Kiểm tra Internet, VPN hoặc firewall.",
         aborted: "Phiên nhận giọng nói đã bị dừng.",
       };
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
         setMicrophoneStatus("denied");
+      } else if (event.error === "network") {
+        setMicrophoneStatus("offline");
       }
-      toast.error(errors[event.error] ?? `Lỗi microphone: ${event.error}`);
+      const message = errors[event.error] ?? `Lỗi microphone: ${event.error}`;
+      setMicrophoneMessage(
+        event.error === "network"
+          ? "Microphone đã hoạt động nhưng dịch vụ chuyển giọng nói của trình duyệt không kết nối được. Kiểm tra Internet, VPN, firewall hoặc thử lại bằng Chrome/Edge."
+          : message,
+      );
+      toast.error(message);
     };
     recognition.start();
   }
@@ -1037,43 +1071,72 @@ export function LearningWorkspace({
             {question.passage ? <blockquote className="rounded-3xl border border-sky-100 bg-sky-50/80 p-5 leading-7">{question.passage}</blockquote> : null}
             {question.skill === "listening" ? <Button variant="outline" onClick={speakPassage}><Volume2 /> {t("workspace.playAudio")}</Button> : null}
             {question.skill === "speaking" ? (
-              <>
-                <p className="rounded-2xl bg-secondary/60 p-5 text-lg">{question.prompt.model}</p>
-                <Button
-                  variant="outline"
-                  onClick={startRecognition}
-                  disabled={
-                    microphoneStatus === "requesting" ||
-                    microphoneStatus === "listening"
-                  }
-                >
-                  {microphoneStatus === "requesting" ||
-                  microphoneStatus === "listening" ? (
-                    <Loader2 className="animate-spin" />
-                  ) : (
-                    <Mic2 />
-                  )}
-                  {microphoneStatus === "requesting"
-                    ? t("workspace.requesting")
-                    : microphoneStatus === "listening"
-                      ? t("workspace.listening")
-                      : t("workspace.startRecording")}
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Trạng thái microphone:{" "}
-                  {microphoneStatus === "idle"
-                    ? "chưa kiểm tra"
-                    : microphoneStatus === "granted"
-                      ? "đã cấp quyền"
-                      : microphoneStatus === "denied"
-                        ? "bị chặn"
-                        : microphoneStatus === "unsupported"
-                          ? "không được hỗ trợ"
-                          : microphoneStatus === "listening"
-                            ? "đang nghe"
-                            : "đang yêu cầu quyền"}
-                </p>
-              </>
+              <div className="overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-indigo-50">
+                <div className="border-b border-sky-100 p-5">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-600">
+                    Câu luyện phát âm
+                  </p>
+                  <p className="mt-2 text-xl font-black leading-8 text-slate-900">
+                    {question.prompt.model}
+                  </p>
+                </div>
+                <div className="grid gap-4 p-5 md:grid-cols-[1fr_auto] md:items-center">
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-2xl ${
+                        microphoneStatus === "listening"
+                          ? "animate-pulse bg-rose-100 text-rose-600"
+                          : microphoneStatus === "granted"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : microphoneStatus === "denied" ||
+                                microphoneStatus === "offline"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-sky-100 text-sky-700"
+                      }`}
+                    >
+                      <Mic2 />
+                    </span>
+                    <div>
+                      <p className="font-bold">
+                        {microphoneStatus === "listening"
+                          ? "Đang nghe giọng nói"
+                          : microphoneStatus === "granted"
+                            ? "Microphone sẵn sàng"
+                            : microphoneStatus === "denied"
+                              ? "Cần cấp lại quyền"
+                              : microphoneStatus === "offline"
+                                ? "Dịch vụ giọng nói mất kết nối"
+                                : "Kiểm tra microphone"}
+                      </p>
+                      <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">
+                        {microphoneMessage}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={startRecognition}
+                    disabled={
+                      microphoneStatus === "requesting" ||
+                      microphoneStatus === "listening"
+                    }
+                    className="min-w-40 rounded-2xl"
+                  >
+                    {microphoneStatus === "requesting" ||
+                    microphoneStatus === "listening" ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <Mic2 />
+                    )}
+                    {microphoneStatus === "requesting"
+                      ? "Đang xin quyền..."
+                      : microphoneStatus === "listening"
+                        ? "Đang nghe..."
+                        : microphoneStatus === "denied"
+                          ? "Xin quyền lại"
+                          : "Kiểm tra và bắt đầu"}
+                  </Button>
+                </div>
+              </div>
             ) : null}
             {question.question_type === "sentence_order" && question.options?.length ? (
               <div className="flex flex-col gap-4">

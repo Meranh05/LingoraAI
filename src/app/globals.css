@@ -221,6 +221,15 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+
+  html[data-density="compact"] main {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  html[data-density="compact"] main > div {
+    gap: 1rem;
+  }
 }
 
 @keyframes lumo-float {

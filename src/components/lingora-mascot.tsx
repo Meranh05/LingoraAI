@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { readClientAiConfig } from "@/lib/client-ai-config";
 import type { MascotMood } from "@/lib/gamification";
 import { cn } from "@/lib/utils";
+import { useExperience } from "@/components/experience-provider";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -59,6 +60,7 @@ export function openMascotChat() {
 export function MascotCompanion() {
   const pathname = usePathname();
   const { t } = useLocale();
+  const { showMascot } = useExperience();
   const [open, setOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -141,6 +143,7 @@ export function MascotCompanion() {
   }
 
   if (
+    !showMascot ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/learn/") ||
     pathname.startsWith("/ai-tutor")

@@ -509,7 +509,7 @@ export async function getProfileSettings(viewer: Viewer) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("learning_goal,daily_goal_minutes,ai_training_consent")
+    .select("learning_goal,daily_goal_minutes,ai_training_consent,preferences")
     .eq("id", viewer.id)
     .single();
   assertNoError(error, "Cài đặt hồ sơ");
@@ -517,6 +517,14 @@ export async function getProfileSettings(viewer: Viewer) {
     learningGoal: data?.learning_goal ?? "",
     dailyGoalMinutes: data?.daily_goal_minutes ?? 20,
     aiTrainingConsent: Boolean(data?.ai_training_consent),
+    preferences: {
+      emailReminders: data?.preferences?.emailReminders !== false,
+      dailyReminder: data?.preferences?.dailyReminder !== false,
+      weeklySummary: data?.preferences?.weeklySummary !== false,
+      autoPlayAudio: data?.preferences?.autoPlayAudio === true,
+      showMascot: data?.preferences?.showMascot !== false,
+      compactMode: data?.preferences?.compactMode === true,
+    },
   };
 }
 

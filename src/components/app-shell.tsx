@@ -28,7 +28,7 @@ import {
   Trophy,
   Waypoints,
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -205,6 +205,9 @@ function SidebarContent({
         <div className="rounded-2xl bg-secondary/70 p-3">
           <div className="flex items-center gap-3">
             <Avatar className="size-9">
+              {viewer?.avatarUrl ? (
+                <AvatarImage src={viewer.avatarUrl} alt={viewer.fullName} />
+              ) : null}
               <AvatarFallback className="bg-primary text-primary-foreground">
                 {initials(viewer?.fullName ?? "Guest")}
               </AvatarFallback>
@@ -319,6 +322,9 @@ export function AppShell({
                 render={<button type="button" className="rounded-full" />}
               >
                 <Avatar className="size-9">
+                  {viewer?.avatarUrl ? (
+                    <AvatarImage src={viewer.avatarUrl} alt={viewer.fullName} />
+                  ) : null}
                   <AvatarFallback className="bg-primary text-primary-foreground">
                     {initials(viewer?.fullName ?? "Guest")}
                   </AvatarFallback>
