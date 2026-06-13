@@ -82,6 +82,14 @@ từng tài khoản và bảo vệ dữ liệu bằng Supabase RLS.
 | --- | --- |
 | ![Lingora practice](docs/screenshots/practice.png) | ![Lingora admin](docs/screenshots/admin.png) |
 
+### Live administration analytics
+
+The administration dashboard reads directly from Supabase and visualizes
+14-day learning activity, plan distribution, skill engagement and the current
+content inventory.
+
+![Lingora live administration analytics](docs/screenshots/admin-analytics.png)
+
 <details>
 <summary>Mobile roadmap preview</summary>
 
