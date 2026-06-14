@@ -117,6 +117,14 @@ export function PermissionDiagnostics() {
   }
 
   async function requestMicrophone() {
+    if (!window.isSecureContext && window.location.hostname !== "localhost") {
+      toast.error("Microphone chỉ hoạt động trên HTTPS hoặc localhost.");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error("Trình duyệt không cung cấp API microphone.");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach((track) => track.stop());
@@ -127,7 +135,11 @@ export function PermissionDiagnostics() {
       toast.error(
         name === "NotAllowedError"
           ? "Quyền bị chặn. Mở biểu tượng ổ khóa cạnh URL, đặt Microphone thành Allow rồi tải lại."
-          : "Không thể mở microphone.",
+          : name === "NotFoundError"
+            ? "Không tìm thấy microphone trên thiết bị."
+            : name === "NotReadableError"
+              ? "Microphone đang được ứng dụng khác sử dụng."
+              : "Không thể mở microphone. Kiểm tra thiết bị và quyền hệ điều hành.",
       );
       await runChecks();
     }
@@ -135,25 +147,40 @@ export function PermissionDiagnostics() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => void runChecks(), 0);
-    return () => window.clearTimeout(timer);
+    const refresh = () => void runChecks();
+    window.addEventListener("online", refresh);
+    window.addEventListener("offline", refresh);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("offline", refresh);
+    };
   }, []);
 
   return (
-    <Card className="glass-panel">
-      <CardHeader>
-        <CardTitle>Chẩn đoán quyền và kết nối</CardTitle>
+    <Card className="overflow-hidden border-white/80 bg-white/90 shadow-lg shadow-sky-100/70">
+      <CardHeader className="border-b bg-gradient-to-r from-sky-50 to-white">
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="size-5 text-sky-600" />
+          Chẩn đoán quyền và kết nối
+        </CardTitle>
         <CardDescription>
           Kiểm tra trực tiếp môi trường trình duyệt và cấu hình server hiện tại.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+          Web Speech trên Chrome/Edge cần Internet để chuyển giọng nói thành văn
+          bản. Quyền microphone có thể đã được cấp nhưng nhận giọng nói vẫn lỗi
+          nếu VPN, firewall hoặc mạng chặn dịch vụ của trình duyệt.
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {checks.map((check) => {
             const Icon = check.icon;
             return (
               <div
                 key={check.label}
-                className="flex items-center gap-3 rounded-2xl border bg-white/70 p-4"
+                className="flex items-center gap-3 rounded-2xl border bg-white p-4 shadow-sm"
               >
                 <span
                   className={`flex size-10 items-center justify-center rounded-xl ${

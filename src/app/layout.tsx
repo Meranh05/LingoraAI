@@ -37,11 +37,12 @@ export default async function RootLayout({
     <html
       lang={viewer?.locale ?? "vi"}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full">
+      <body className="min-h-full" suppressHydrationWarning>
         <TooltipProvider>
           <LocaleProvider initialLocale={viewer?.locale ?? "vi"}>
-            <ExperienceProvider>
+            <ExperienceProvider initialPreferences={viewer?.preferences}>
               <AppShell viewer={viewer}>{children}</AppShell>
               <Toaster richColors position="top-right" />
             </ExperienceProvider>

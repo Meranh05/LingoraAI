@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getOptionalViewer } from "@/lib/auth";
+import {
+  answerWords,
+  normalizeAnswer,
+  orderedSentenceScore,
+  wordSimilarity,
+} from "@/lib/practice-scoring";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const schema = z.object({
@@ -9,33 +15,15 @@ const schema = z.object({
   durationSeconds: z.number().int().min(0).max(14_400).default(0),
   module: z.enum(["practice", "quiz", "competition"]).default("practice"),
   challengeId: z.uuid().optional(),
+  unitId: z.uuid().optional(),
+  unitSessionId: z.uuid().optional(),
   idempotencyKey: z.uuid(),
-});
-
-function normalize(value: unknown) {
-  return String(value ?? "").trim().toLocaleLowerCase("en");
-}
-
-function words(value: unknown) {
-  return normalize(value)
-    .replace(/[^\p{L}\p{N}\s]/gu, "")
-    .split(/\s+/)
-    .filter(Boolean);
-}
-
-function similarity(expectedValue: unknown, actualValue: unknown) {
-  const expected = words(expectedValue);
-  const actual = words(actualValue);
-  if (!expected.length) return 0;
-  const remaining = [...actual];
-  const matched = expected.filter((word) => {
-    const index = remaining.indexOf(word);
-    if (index < 0) return false;
-    remaining.splice(index, 1);
-    return true;
-  }).length;
-  return Math.round((matched / expected.length) * 100);
-}
+}).refine(
+  (value) =>
+    (!value.unitId && !value.unitSessionId) ||
+    Boolean(value.unitId && value.unitSessionId),
+  { message: "unitId và unitSessionId phải được gửi cùng nhau." },
+);
 
 export async function POST(request: Request) {
   const viewer = await getOptionalViewer();
@@ -44,11 +32,72 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const { data: question, error: questionError } = await admin
     .from("practice_questions")
-    .select("id,skill,question_type,answer_key,explanation,options")
+    .select("id,unit_id,skill,question_type,answer_key,explanation,options")
     .eq("id", input.questionId)
     .single();
   if (questionError || !question) {
     return NextResponse.json({ error: "Không tìm thấy câu hỏi." }, { status: 404 });
+  }
+  if (input.unitId && question.unit_id !== input.unitId) {
+    return NextResponse.json(
+      { error: "Câu hỏi không thuộc chặng học hiện tại." },
+      { status: 403 },
+    );
+  }
+  if (input.unitId && input.unitSessionId) {
+    const { data: activeSession } = await admin
+      .from("learning_unit_sessions")
+      .select("id")
+      .eq("id", input.unitSessionId)
+      .eq("user_id", viewer.id)
+      .eq("unit_id", input.unitId)
+      .eq("status", "active")
+      .maybeSingle();
+    if (!activeSession) {
+      return NextResponse.json(
+        { error: "Phiên học không còn hoạt động. Hãy mở lại chặng." },
+        { status: 403 },
+      );
+    }
+  }
+  if (question.unit_id && input.module !== "competition") {
+    const { data: unit } = await admin
+      .from("learning_units")
+      .select("path_id,position")
+      .eq("id", question.unit_id)
+      .maybeSingle();
+    if (unit) {
+      const [{ data: enrollment }, { data: previous }] = await Promise.all([
+        admin
+          .from("user_path_enrollments")
+          .select("id")
+          .eq("user_id", viewer.id)
+          .eq("path_id", unit.path_id)
+          .maybeSingle(),
+        admin
+          .from("learning_units")
+          .select("id")
+          .eq("path_id", unit.path_id)
+          .lt("position", unit.position)
+          .order("position", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      if (enrollment && previous) {
+        const { data: previousProgress } = await admin
+          .from("user_unit_progress")
+          .select("completed_at")
+          .eq("user_id", viewer.id)
+          .eq("unit_id", previous.id)
+          .maybeSingle();
+        if (!previousProgress?.completed_at) {
+          return NextResponse.json(
+            { error: "Hãy hoàn thành checkpoint trước để mở bài học này." },
+            { status: 403 },
+          );
+        }
+      }
+    }
   }
 
   const key = (question.answer_key ?? {}) as {
@@ -61,37 +110,39 @@ export async function POST(request: Request) {
   const options = (question.options ?? []) as Array<{ id?: string; text?: string }>;
   let score: number | null = null;
   if (question.question_type === "multiple_choice" || question.question_type === "true_false") {
-    const selected = options.find((option) => normalize(option.id) === normalize(input.answer));
+    const selected = options.find((option) => normalizeAnswer(option.id) === normalizeAnswer(input.answer));
     score =
-      normalize(input.answer) === normalize(key.value) ||
-      normalize(selected?.text) === normalize(key.value)
+      normalizeAnswer(input.answer) === normalizeAnswer(key.value) ||
+      normalizeAnswer(selected?.text) === normalizeAnswer(key.value)
         ? 100
         : 0;
   } else if (question.question_type === "dictation") {
-    score = similarity(key.text ?? key.value, input.answer);
+    score = wordSimilarity(key.text ?? key.value, input.answer);
   } else if (question.question_type === "short_answer") {
-    score = similarity(key.value ?? key.text, input.answer);
+    score = wordSimilarity(key.value ?? key.text, input.answer);
   } else if (question.question_type === "fill_blank") {
-    score = normalize(key.value ?? key.text) === normalize(input.answer) ? 100 : similarity(key.value ?? key.text, input.answer);
+    score = normalizeAnswer(key.value ?? key.text) === normalizeAnswer(input.answer)
+      ? 100
+      : wordSimilarity(key.value ?? key.text, input.answer);
   } else if (question.question_type === "match_meaning") {
-    const selected = options.find((option) => normalize(option.id) === normalize(input.answer));
+    const selected = options.find((option) => normalizeAnswer(option.id) === normalizeAnswer(input.answer));
     score =
-      normalize(input.answer) === normalize(key.value) ||
-      normalize(selected?.text) === normalize(key.value)
+      normalizeAnswer(input.answer) === normalizeAnswer(key.value) ||
+      normalizeAnswer(selected?.text) === normalizeAnswer(key.value)
         ? 100
         : 0;
   } else if (question.question_type === "sentence_order") {
     const ordered = Array.isArray(input.answer)
       ? input.answer.join(" ")
       : input.answer;
-    score = similarity(key.text ?? key.value, ordered);
+    score = orderedSentenceScore(key.text ?? key.value, ordered);
   } else if (question.question_type === "speaking") {
     const keywords = key.keywords ?? [];
     score = keywords.length
-      ? similarity(keywords.join(" "), input.answer)
-      : Math.min(100, words(input.answer).length * 10);
+      ? wordSimilarity(keywords.join(" "), input.answer)
+      : Math.min(100, answerWords(input.answer).length * 10);
   } else if (question.question_type === "essay") {
-    const count = words(input.answer).length;
+    const count = answerWords(input.answer).length;
     const minimum = key.min_words ?? 60;
     const maximum = key.max_words ?? 180;
     score =
@@ -128,6 +179,21 @@ export async function POST(request: Request) {
   if (!secured) {
     return NextResponse.json({ error: "Không thể ghi nhận lượt học." }, { status: 500 });
   }
+  if (input.unitId && input.unitSessionId) {
+    const { error: sessionError } = await admin.rpc(
+      "attach_attempt_to_unit_session",
+      {
+        target_user_id: viewer.id,
+        target_session_id: input.unitSessionId,
+        target_unit_id: input.unitId,
+        target_question_id: question.id,
+        target_attempt_id: secured.attempt_id,
+      },
+    );
+    if (sessionError) {
+      return NextResponse.json({ error: sessionError.message }, { status: 403 });
+    }
+  }
   if (input.module === "quiz" && score !== null) {
     await admin.from("quiz_results").insert({
       user_id: viewer.id,
@@ -147,5 +213,15 @@ export async function POST(request: Request) {
     },
     rewardEligible: secured.reward_eligible,
     cooldownSeconds: secured.cooldown_seconds,
+    correctAnswer:
+      question.question_type === "multiple_choice" ||
+      question.question_type === "true_false" ||
+      question.question_type === "match_meaning"
+        ? options.find(
+            (option) =>
+              normalizeAnswer(option.id) === normalizeAnswer(key.value) ||
+              normalizeAnswer(option.text) === normalizeAnswer(key.value),
+          )?.text ?? String(key.value ?? "")
+        : String(key.text ?? key.value ?? ""),
   });
 }

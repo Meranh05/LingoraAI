@@ -1,5 +1,6 @@
 import "server-only";
 import type { Viewer } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getLevelState } from "@/lib/gamification";
 
@@ -11,6 +12,8 @@ function text(value: Localized, locale: string) {
 
 export async function getCompetitionData(viewer: Viewer) {
   const supabase = await createClient();
+  const admin = createAdminClient();
+  await admin.rpc("refresh_recurring_challenges");
   const [{ data: profile }, { data: wallet }, { data: entries, error: entriesError }, { data: challenges, error: challengesError }, { data: participants, error: participantsError }, { data: pool, error: poolError }] =
     await Promise.all([
       supabase

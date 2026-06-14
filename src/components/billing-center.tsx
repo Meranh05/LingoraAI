@@ -15,6 +15,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import type { BillingPlan } from "@/lib/billing";
 import { PageHero } from "@/components/page-hero";
+import { useLocale } from "@/components/locale-provider";
 
 type BillingData = {
   plan: BillingPlan;
@@ -37,6 +38,7 @@ type BillingData = {
 
 export function BillingCenter({ data }: { data: BillingData }) {
   const [loading, setLoading] = useState(false);
+  const { locale, t } = useLocale();
 
   async function openPortal() {
     setLoading(true);
@@ -54,8 +56,8 @@ export function BillingCenter({ data }: { data: BillingData }) {
     <div className="flex flex-col gap-6">
       <PageHero
         icon={CreditCard}
-        title="Gói và thanh toán"
-        description="Theo dõi hạn mức, chu kỳ, subscription và lịch sử thanh toán của tài khoản."
+        title={t("billing.title")}
+        description={t("billing.description")}
         eyebrow={`Lingora ${data.plan.name}`}
         tone="emerald"
       />
@@ -71,37 +73,37 @@ export function BillingCenter({ data }: { data: BillingData }) {
             <CardTitle className="text-3xl">Lingora {data.plan.name}</CardTitle>
             <CardDescription>
               {data.subscription?.current_period_end
-                ? `Chu kỳ hiện tại đến ${new Intl.DateTimeFormat("vi-VN", {
+                ? t("billing.period", { date: new Intl.DateTimeFormat(locale, {
                     dateStyle: "medium",
-                  }).format(new Date(data.subscription.current_period_end))}`
-                : "Bạn đang sử dụng gói miễn phí."}
+                  }).format(new Date(data.subscription.current_period_end)) })
+                : t("billing.free")}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex gap-3">
             <Button nativeButton={false} render={<a href="/pricing" />}>
-              Nâng cấp gói
+              {t("billing.upgrade")}
             </Button>
             {data.subscription ? (
               <Button variant="outline" onClick={openPortal} disabled={loading}>
                 {loading ? <Loader2 className="animate-spin" /> : <ExternalLink />}
-                Quản lý thanh toán
+                {t("billing.manage")}
               </Button>
             ) : null}
           </CardContent>
         </Card>
         <Card className="glass-panel">
           <CardHeader>
-            <CardTitle>Hạn mức hiện tại</CardTitle>
-            <CardDescription>Quota AI được làm mới mỗi ngày.</CardDescription>
+            <CardTitle>{t("billing.limits")}</CardTitle>
+            <CardDescription>{t("billing.dailyReset")}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             <Usage
-              label="Yêu cầu AI hôm nay"
+              label={t("billing.aiToday")}
               used={data.usage.ai}
               limit={data.plan.aiRequestsPerDay}
             />
             <Usage
-              label="Tài liệu đã tải"
+              label={t("billing.documents")}
               used={data.usage.documents}
               limit={data.plan.documentLimit}
             />
@@ -111,7 +113,7 @@ export function BillingCenter({ data }: { data: BillingData }) {
       <Card className="glass-panel">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CreditCard className="size-5 text-primary" /> Hoạt động thanh toán
+            <CreditCard className="size-5 text-primary" /> {t("billing.activity")}
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
@@ -124,7 +126,7 @@ export function BillingCenter({ data }: { data: BillingData }) {
                 <div>
                   <p className="font-medium">{transaction.event_type}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Intl.DateTimeFormat("vi-VN", {
+                    {new Intl.DateTimeFormat(locale, {
                       dateStyle: "medium",
                       timeStyle: "short",
                     }).format(new Date(transaction.created_at))}
@@ -135,7 +137,7 @@ export function BillingCenter({ data }: { data: BillingData }) {
             ))
           ) : (
             <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Chưa có giao dịch.
+              {t("billing.noTransactions")}
             </p>
           )}
         </CardContent>

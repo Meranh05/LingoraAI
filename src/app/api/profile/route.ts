@@ -9,6 +9,16 @@ const schema = z.object({
   learningGoal: z.string().max(500).optional(),
   dailyGoalMinutes: z.number().int().min(5).max(240).optional(),
   aiTrainingConsent: z.boolean().optional(),
+  preferences: z
+    .object({
+      emailReminders: z.boolean(),
+      dailyReminder: z.boolean(),
+      weeklySummary: z.boolean(),
+      autoPlayAudio: z.boolean(),
+      showMascot: z.boolean(),
+      compactMode: z.boolean(),
+    })
+    .optional(),
 });
 
 export async function PATCH(request: Request) {
@@ -33,6 +43,9 @@ export async function PATCH(request: Request) {
             ai_training_consent: input.aiTrainingConsent,
             consent_updated_at: new Date().toISOString(),
           }
+        : {}),
+      ...(input.preferences !== undefined
+        ? { preferences: input.preferences }
         : {}),
       updated_at: new Date().toISOString(),
     })

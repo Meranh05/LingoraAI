@@ -201,6 +201,18 @@
     border-top: 4px dotted rgb(125 211 252 / 75%);
   }
 
+  .journey-route path:last-child {
+    animation: journey-dash 14s linear infinite;
+  }
+
+  .journey-cloud {
+    animation: journey-cloud 5s ease-in-out infinite;
+  }
+
+  .sticker-pop {
+    animation: sticker-pop 2.4s ease-in-out infinite;
+  }
+
   html[data-motion="reduced"] *,
   html[data-motion="reduced"] *::before,
   html[data-motion="reduced"] *::after {
@@ -208,6 +220,15 @@
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+
+  html[data-density="compact"] main {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  html[data-density="compact"] main > div {
+    gap: 1rem;
   }
 }
 
@@ -237,5 +258,29 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes journey-dash {
+  to {
+    stroke-dashoffset: -120;
+  }
+}
+
+@keyframes journey-cloud {
+  0%, 100% {
+    transform: translateX(0) translateY(0);
+  }
+  50% {
+    transform: translateX(8px) translateY(-3px);
+  }
+}
+
+@keyframes sticker-pop {
+  0%, 100% {
+    transform: translateY(0) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(4deg);
   }
 }

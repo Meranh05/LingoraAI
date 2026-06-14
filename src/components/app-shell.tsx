@@ -7,7 +7,6 @@ import {
   BarChart3,
   Blocks,
   BookOpen,
-  Bot,
   BrainCircuit,
   ChevronRight,
   Crown,
@@ -29,7 +28,7 @@ import {
   Trophy,
   Waypoints,
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -55,11 +54,15 @@ import { AdminShell } from "@/components/admin-shell";
 import { GlobalSearch } from "@/components/global-search";
 import { useLocale } from "@/components/locale-provider";
 import { useExperience } from "@/components/experience-provider";
-import { MascotCompanion } from "@/components/lingora-mascot";
+import {
+  MascotCompanion,
+  MascotSprite,
+  openMascotChat,
+} from "@/components/lingora-mascot";
 
 const navigation = [
   { key: "dashboard", href: "/", icon: LayoutDashboard },
-  { key: "tutor", href: "/ai-tutor", icon: Bot },
+  { key: "tutor", href: "/ai-tutor", icon: MessageCircleQuestion },
   { key: "roadmap", href: "/roadmap", icon: Waypoints },
   { key: "practice", href: "/practice", icon: Blocks },
   { key: "documents", href: "/documents", icon: FileText },
@@ -109,7 +112,13 @@ function Navigation({
           <Link
             key={item.href}
             href={item.href}
-            onClick={onNavigate}
+            onClick={(event) => {
+              if (item.key === "tutor") {
+                event.preventDefault();
+                openMascotChat();
+              }
+              onNavigate?.();
+            }}
             className={cn(
               "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
               active
@@ -117,7 +126,16 @@ function Navigation({
                 : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
             )}
           >
-            <Icon className={cn("size-[18px]", active && "text-primary")} />
+            {item.key === "tutor" ? (
+              <span className="relative size-7 shrink-0 rounded-xl bg-sky-100">
+                <MascotSprite
+                  mood="think"
+                  className="absolute inset-0 size-full"
+                />
+              </span>
+            ) : (
+              <Icon className={cn("size-[18px]", active && "text-primary")} />
+            )}
             <span className="flex-1">
               {navigationLabels[locale][item.key]}
             </span>
@@ -187,6 +205,9 @@ function SidebarContent({
         <div className="rounded-2xl bg-secondary/70 p-3">
           <div className="flex items-center gap-3">
             <Avatar className="size-9">
+              {viewer?.avatarUrl ? (
+                <AvatarImage src={viewer.avatarUrl} alt={viewer.fullName} />
+              ) : null}
               <AvatarFallback className="bg-primary text-primary-foreground">
                 {initials(viewer?.fullName ?? "Guest")}
               </AvatarFallback>
@@ -283,7 +304,7 @@ export function AppShell({
                 setSoundEnabled(next);
                 if (next) window.setTimeout(() => play("success"), 0);
               }}
-              aria-label={soundEnabled ? "Tắt âm thanh" : "Bật âm thanh"}
+              aria-label={t(soundEnabled ? "shell.soundOn" : "shell.soundOff")}
             >
               {soundEnabled ? <Volume2 /> : <VolumeX />}
             </Button>
@@ -301,6 +322,9 @@ export function AppShell({
                 render={<button type="button" className="rounded-full" />}
               >
                 <Avatar className="size-9">
+                  {viewer?.avatarUrl ? (
+                    <AvatarImage src={viewer.avatarUrl} alt={viewer.fullName} />
+                  ) : null}
                   <AvatarFallback className="bg-primary text-primary-foreground">
                     {initials(viewer?.fullName ?? "Guest")}
                   </AvatarFallback>

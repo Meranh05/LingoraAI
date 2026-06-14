@@ -12,6 +12,10 @@ export type Viewer = {
   role: "user" | "admin";
   level: string;
   locale: string;
+  preferences: {
+    showMascot: boolean;
+    compactMode: boolean;
+  };
 };
 
 export const getOptionalViewer = cache(async (): Promise<Viewer | null> => {
@@ -24,7 +28,7 @@ export const getOptionalViewer = cache(async (): Promise<Viewer | null> => {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, avatar_url, role, level, locale, status")
+    .select("full_name, avatar_url, role, level, locale, status, preferences")
     .eq("id", claims.sub)
     .single();
 
@@ -44,6 +48,10 @@ export const getOptionalViewer = cache(async (): Promise<Viewer | null> => {
     role: profile?.role === "admin" ? "admin" : "user",
     level: profile?.level ?? "beginner",
     locale: profile?.locale ?? "vi",
+    preferences: {
+      showMascot: profile?.preferences?.showMascot !== false,
+      compactMode: profile?.preferences?.compactMode === true,
+    },
   };
 });
 
