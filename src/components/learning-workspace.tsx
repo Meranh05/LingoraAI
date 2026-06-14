@@ -5,13 +5,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
+  ArrowLeftRight,
   BarChart3,
   BookOpen,
   BrainCircuit,
   Bookmark,
   BookmarkCheck,
   CheckCircle2,
+  Check,
   Clock3,
+  Copy,
   Headphones,
   Heart,
   Languages,
@@ -49,10 +52,22 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useLocale } from "@/components/locale-provider";
 import { navigationLabels } from "@/lib/i18n";
 import { PageHero } from "@/components/page-hero";
 import { useExperience } from "@/components/experience-provider";
+import {
+  translationLanguages,
+  translationLanguageName,
+  type TranslationLanguageCode,
+} from "@/lib/translation-languages";
 
 type Vocabulary = {
   id: string;
@@ -190,6 +205,14 @@ export function LearningWorkspace({
   const [meaning, setMeaning] = useState("");
   const [text, setText] = useState("");
   const [result, setResult] = useState("");
+  const [translationSource, setTranslationSource] = useState<
+    TranslationLanguageCode | "auto"
+  >("auto");
+  const [translationTarget, setTranslationTarget] =
+    useState<TranslationLanguageCode>(locale === "vi" ? "en" : "vi");
+  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
+  const [translationProvider, setTranslationProvider] = useState("");
+  const [copied, setCopied] = useState(false);
   const [answer, setAnswer] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [score, setScore] = useState<number | null>(null);
@@ -553,10 +576,45 @@ export function LearningWorkspace({
     if (!text.trim()) return toast.error("Nhập nội dung trước khi gửi.");
     setLoading(true);
     try {
+      if (mode === "translation") {
+        const googleResponse = await fetch("/api/translation/google", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text,
+            source: translationSource === "auto" ? null : translationSource,
+            target: translationTarget,
+          }),
+        });
+        const googlePayload = (await googleResponse.json()) as {
+          text?: string;
+          detectedSourceLanguage?: string | null;
+          provider?: string;
+          error?: string;
+          code?: string;
+        };
+        if (googleResponse.ok) {
+          setResult(googlePayload.text ?? "");
+          setDetectedLanguage(googlePayload.detectedSourceLanguage ?? null);
+          setTranslationProvider("Google Cloud Translation");
+          toast.success("Đã dịch bằng Google Cloud Translation.");
+          play("complete");
+          router.refresh();
+          return;
+        }
+        if (googlePayload.code !== "GOOGLE_TRANSLATION_NOT_CONFIGURED") {
+          throw new Error(googlePayload.error ?? "Google Translation không phản hồi.");
+        }
+      }
+
       const instruction =
         mode === "writing"
           ? "Correct this English writing. Return the corrected English first, then concise feedback in the response language selected by the server."
-          : "Translate naturally based on the source language and the user's selected interface language. Explain three important phrases.";
+          : `Translate naturally from ${
+              translationSource === "auto"
+                ? "the automatically detected language"
+                : translationLanguageName(translationSource)
+            } to ${translationLanguageName(translationTarget)}. Return only the translation.`;
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -572,6 +630,12 @@ export function LearningWorkspace({
       if (!response.ok) throw new Error(payload.error ?? "Model không phản hồi.");
       const output = payload.text ?? "";
       setResult(output);
+      if (mode === "translation") {
+        setDetectedLanguage(
+          translationSource === "auto" ? null : translationSource,
+        );
+        setTranslationProvider("Lingora AI fallback");
+      }
       if (mode === "writing") {
         const saveResponse = await fetch("/api/writing", {
           method: "POST",
@@ -584,7 +648,7 @@ export function LearningWorkspace({
         });
         if (!saveResponse.ok) throw new Error("AI đã trả lời nhưng không thể lưu bài sửa.");
       }
-      toast.success(mode === "writing" ? "Đã sửa và lưu bài viết." : "Đã dịch bằng model API.");
+      toast.success(mode === "writing" ? "Đã sửa và lưu bài viết." : "Đã dịch bằng AI dự phòng.");
       play("complete");
       router.refresh();
     } catch (error) {
@@ -593,6 +657,36 @@ export function LearningWorkspace({
     } finally {
       setLoading(false);
     }
+  }
+
+  function swapTranslationLanguages() {
+    if (translationSource === "auto") {
+      setTranslationSource(translationTarget);
+      setTranslationTarget(
+        detectedLanguage && translationLanguages.some((item) => item.code === detectedLanguage)
+          ? (detectedLanguage as TranslationLanguageCode)
+          : locale === "vi"
+            ? "vi"
+            : "en",
+      );
+    } else {
+      const currentSource = translationSource;
+      setTranslationSource(translationTarget);
+      setTranslationTarget(currentSource);
+    }
+    setText(result);
+    setResult(text);
+    setDetectedLanguage(null);
+    setTranslationProvider("");
+  }
+
+  async function copyTranslation() {
+    if (!result) return;
+    await navigator.clipboard.writeText(result);
+    setCopied(true);
+    play("tap");
+    toast.success("Đã sao chép bản dịch.");
+    window.setTimeout(() => setCopied(false), 1500);
   }
 
   function speakPassage() {
@@ -774,17 +868,112 @@ export function LearningWorkspace({
   if (!lesson && (kind === "writing" || kind === "translation")) {
     return (
       <Page title={title} description={description} icon={Icon}>
+        {kind === "translation" ? (
+          <Card className="glass-panel overflow-visible border-sky-200/70 bg-gradient-to-r from-white/90 via-sky-50/80 to-indigo-50/80">
+            <CardContent className="flex flex-col items-stretch gap-3 p-4 sm:flex-row sm:items-center">
+              <Select
+                value={translationSource}
+                onValueChange={(value) =>
+                  setTranslationSource(
+                    (value ?? "auto") as TranslationLanguageCode | "auto",
+                  )
+                }
+              >
+                <SelectTrigger className="h-11 w-full rounded-xl bg-white sm:flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Tự động nhận diện</SelectItem>
+                  {translationLanguages.map((language) => (
+                    <SelectItem key={language.code} value={language.code}>
+                      {language.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="mx-auto size-11 rounded-full bg-white shadow-sm"
+                onClick={swapTranslationLanguages}
+                aria-label="Đổi ngôn ngữ nguồn và đích"
+              >
+                <ArrowLeftRight />
+              </Button>
+              <Select
+                value={translationTarget}
+                onValueChange={(value) =>
+                  setTranslationTarget(
+                    (value ?? "vi") as TranslationLanguageCode,
+                  )
+                }
+              >
+                <SelectTrigger className="h-11 w-full rounded-xl bg-white sm:flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {translationLanguages.map((language) => (
+                    <SelectItem key={language.code} value={language.code}>
+                      {language.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+        ) : null}
         <div className="grid gap-5 lg:grid-cols-2">
           <Card className="glass-panel interactive-lift">
-            <CardHeader><CardTitle>{t("workspace.input")}</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>{t("workspace.input")}</CardTitle>
+              {kind === "translation" ? (
+                <CardDescription>
+                  {text.length.toLocaleString()}/10.000 ký tự
+                </CardDescription>
+              ) : null}
+            </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              <Textarea className="min-h-80 bg-white/80" value={text} onChange={(event) => setText(event.target.value)} />
+              <Textarea
+                className="min-h-80 resize-y bg-white/80 text-base leading-7"
+                maxLength={kind === "translation" ? 10_000 : undefined}
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder={
+                  kind === "translation"
+                    ? "Nhập hoặc dán nội dung cần dịch..."
+                    : undefined
+                }
+              />
               <Button onClick={() => runAi(kind)} disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : <Languages />} {kind === "writing" ? t("workspace.correct") : t("workspace.translate")}</Button>
             </CardContent>
           </Card>
           <Card className="glass-panel interactive-lift">
-            <CardHeader><CardTitle>{t("workspace.result")}</CardTitle></CardHeader>
-            <CardContent className="min-h-80 whitespace-pre-wrap text-sm leading-7">
+            <CardHeader className="flex-row items-start justify-between">
+              <div>
+                <CardTitle>{t("workspace.result")}</CardTitle>
+                {kind === "translation" && (translationProvider || detectedLanguage) ? (
+                  <CardDescription className="mt-1">
+                    {translationProvider}
+                    {detectedLanguage
+                      ? ` · Đã nhận diện: ${translationLanguageName(detectedLanguage)}`
+                      : ""}
+                  </CardDescription>
+                ) : null}
+              </div>
+              {kind === "translation" && result ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={copyTranslation}
+                  aria-label="Sao chép bản dịch"
+                >
+                  {copied ? <Check /> : <Copy />}
+                </Button>
+              ) : null}
+            </CardHeader>
+            <CardContent className="min-h-80 whitespace-pre-wrap text-base leading-8">
               {result || <Empty text={t("workspace.noResult")} />}
             </CardContent>
           </Card>
