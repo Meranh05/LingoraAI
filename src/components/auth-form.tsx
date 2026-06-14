@@ -205,7 +205,7 @@ export function AuthForm({
                     </AuthField>
                   ) : null}
                   <AuthField icon={Mail} label="Địa chỉ email">
-                    <Input name="email" type="email" placeholder="ban@example.com" autoComplete="email" required />
+                    <Input name="email" type="email" placeholder="Email của bạn" autoComplete="email" required />
                   </AuthField>
                   <AuthField icon={LockKeyhole} label="Mật khẩu">
                     <Input
@@ -246,7 +246,7 @@ export function AuthForm({
                     Lingora sẽ gửi một liên kết đăng nhập an toàn đến hộp thư của bạn. Không cần nhập mật khẩu.
                   </p>
                   <AuthField icon={Mail} label="Địa chỉ email">
-                    <Input name="email" type="email" placeholder="ban@example.com" autoComplete="email" required />
+                    <Input name="email" type="email" placeholder="Email của bạn" autoComplete="email" required />
                   </AuthField>
                   <Status state={magicState} />
                   <Button
