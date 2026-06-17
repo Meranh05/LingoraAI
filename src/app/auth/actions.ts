@@ -1,8 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { getAppOrigin } from "@/lib/app-url";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -60,7 +60,7 @@ export async function signUpWithPassword(
     });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
 
-  const origin = (await headers()).get("origin") ?? "";
+  const origin = await getAppOrigin();
   const supabase = await createClient();
   const { error } = await supabase.auth.signUp({
     email: parsed.data.email,
@@ -87,7 +87,7 @@ export async function sendMagicLink(
     .safeParse({ email: formData.get("email") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
 
-  const origin = (await headers()).get("origin") ?? "";
+  const origin = await getAppOrigin();
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data.email,
@@ -120,7 +120,7 @@ export async function signInWithGoogle(formData: FormData) {
       "/login?message=Google OAuth chưa được bật trong Supabase Auth Providers",
     );
   }
-  const origin = (await headers()).get("origin") ?? "";
+  const origin = await getAppOrigin();
   const next = safeNext(formData.get("next"));
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({

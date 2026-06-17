@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOptionalViewer } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getOriginFromRequest } from "@/lib/app-url";
 import { getStripe } from "@/lib/stripe";
 
 export async function POST(request: Request) {
@@ -24,9 +25,7 @@ export async function POST(request: Request) {
         { status: 404 },
       );
     }
-    const origin =
-      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") ||
-      new URL(request.url).origin;
+    const origin = getOriginFromRequest(request);
     const session = await getStripe().billingPortal.sessions.create({
       customer: data.stripe_customer_id,
       return_url: `${origin}/billing`,

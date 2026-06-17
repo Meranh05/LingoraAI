@@ -7,6 +7,7 @@ import {
   type BillingCurrency,
 } from "@/lib/billing";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getOriginFromRequest } from "@/lib/app-url";
 import { getStripe } from "@/lib/stripe";
 
 const schema = z.object({
@@ -83,9 +84,7 @@ export async function POST(request: Request) {
 
     const currency = input.currency as BillingCurrency;
     const amount = currency === "vnd" ? plan.priceVnd : plan.priceUsd;
-    const origin =
-      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") ||
-      new URL(request.url).origin;
+    const origin = getOriginFromRequest(request);
     const cardless = input.mode === "trial" || input.mode === "developer";
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
