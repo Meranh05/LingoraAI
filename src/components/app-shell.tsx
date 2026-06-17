@@ -59,6 +59,7 @@ import {
   MascotSprite,
   openMascotChat,
 } from "@/components/lingora-mascot";
+import { canShowMascotCompanion } from "@/lib/mascot-visibility";
 
 const navigation = [
   { key: "dashboard", href: "/", icon: LayoutDashboard },
@@ -98,6 +99,7 @@ function Navigation({
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
+  const { showMascot } = useExperience();
 
   return (
     <nav className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
@@ -113,7 +115,10 @@ function Navigation({
             key={item.href}
             href={item.href}
             onClick={(event) => {
-              if (item.key === "tutor") {
+              if (
+                item.key === "tutor" &&
+                canShowMascotCompanion(pathname, showMascot)
+              ) {
                 event.preventDefault();
                 openMascotChat();
               }
