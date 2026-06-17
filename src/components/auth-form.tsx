@@ -231,11 +231,11 @@ export function AuthForm({
                   />
                   <Button
                     type="submit"
-                    className="mt-1 h-12 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 text-[15px] font-bold shadow-lg shadow-sky-200 transition hover:-translate-y-0.5 hover:from-sky-600 hover:to-cyan-600"
+                    className="relative mt-1 h-12 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 text-center text-[15px] font-bold shadow-lg shadow-sky-200 transition hover:-translate-y-0.5 hover:from-sky-600 hover:to-cyan-600"
                     disabled={loginPending || registerPending}
                   >
-                    {mode === "login" ? "Đăng nhập" : "Đăng ký"}
-                    <ArrowRight className="ml-auto" />
+                    <span className="mx-auto">{mode === "login" ? "Đăng nhập" : "Đăng ký"}</span>
+                    <ArrowRight className="absolute right-4" />
                   </Button>
                 </form>
               </TabsContent>
@@ -276,9 +276,6 @@ export function AuthForm({
               <ShieldCheck className="size-3.5 text-emerald-500" />
               Thông tin đăng nhập được mã hóa và bảo vệ
             </div>
-            <Link href="/setup" className="text-center text-xs font-medium text-slate-400 hover:text-sky-600">
-              Hướng dẫn cấu hình hệ thống
-            </Link>
           </CardContent>
         </Card>
       </main>
