@@ -577,7 +577,7 @@ export function LearningWorkspace({
     setLoading(true);
     try {
       if (mode === "translation") {
-        const googleResponse = await fetch("/api/translation/google", {
+        const translationResponse = await fetch("/api/translation", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -586,24 +586,25 @@ export function LearningWorkspace({
             target: translationTarget,
           }),
         });
-        const googlePayload = (await googleResponse.json()) as {
+        const translationPayload = (await translationResponse.json()) as {
           text?: string;
           detectedSourceLanguage?: string | null;
           provider?: string;
+          providerLabel?: string;
           error?: string;
           code?: string;
         };
-        if (googleResponse.ok) {
-          setResult(googlePayload.text ?? "");
-          setDetectedLanguage(googlePayload.detectedSourceLanguage ?? null);
-          setTranslationProvider("Google Cloud Translation");
-          toast.success("Đã dịch bằng Google Cloud Translation.");
+        if (translationResponse.ok) {
+          setResult(translationPayload.text ?? "");
+          setDetectedLanguage(translationPayload.detectedSourceLanguage ?? null);
+          setTranslationProvider(translationPayload.providerLabel ?? "Dịch máy");
+          toast.success(`Đã dịch bằng ${translationPayload.providerLabel ?? "dịch máy"}.`);
           play("complete");
           router.refresh();
           return;
         }
-        if (googlePayload.code !== "GOOGLE_TRANSLATION_NOT_CONFIGURED") {
-          throw new Error(googlePayload.error ?? "Google Translation không phản hồi.");
+        if (translationPayload.code !== "NOT_CONFIGURED") {
+          throw new Error(translationPayload.error ?? "Dịch máy không phản hồi.");
         }
       }
 

@@ -38,7 +38,8 @@ providers in one account-isolated application.
 - Difficult-question review queue persisted per learner.
 - AI Tutor with saved conversations, document context and answer feedback.
 - Reading, listening, speaking, writing, translation, quiz and vocabulary tools.
-- Google Cloud Translation with automatic language detection and server-side keys.
+- Azure, Google and LibreTranslate machine translation with automatic language
+  detection and server-side keys.
 - Flashcards with spaced review and learner-owned vocabulary.
 - PDF, DOCX and TXT extraction with AI learning tools.
 - XP, tokens, daily/weekly challenges, levels and competition leaderboards.
@@ -174,6 +175,11 @@ OPENAI_API_KEY=
 OPENROUTER_API_KEY=
 ANTHROPIC_API_KEY=
 GOOGLE_CLOUD_TRANSLATION_API_KEY=
+AZURE_TRANSLATOR_KEY=
+AZURE_TRANSLATOR_REGION=
+AZURE_TRANSLATOR_ENDPOINT=https://api.cognitive.microsofttranslator.com
+LIBRETRANSLATE_URL=
+LIBRETRANSLATE_API_KEY=
 
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
@@ -242,28 +248,51 @@ prefix, model name or custom Base URL.
 Retryable provider failures such as HTTP `429`, `500`, `502`, `503` and `504`
 use bounded retries and return actionable messages to the interface.
 
-### Google Cloud Translation
+### Machine Translation
 
-The Translation workspace uses Google Cloud Translation Basic (v2) when
-`GOOGLE_CLOUD_TRANSLATION_API_KEY` is configured. The key stays on the server;
-the browser only calls Lingora's authenticated `/api/translation/google`
-route. If the key is absent, Lingora falls back to the configured AI provider.
+The Translation workspace uses a server-side provider chain:
+
+```text
+Azure AI Translator → Google Cloud Translation → LibreTranslate → Lingora AI fallback
+```
+
+The browser only calls Lingora's authenticated `/api/translation` route. API
+keys stay on the server, and translation text is not stored in learning-event
+metadata.
+
+Recommended free/low-cost setup:
+
+1. Create an Azure account and enable **Azure AI Translator** on the F0 tier.
+2. Copy the resource key and region into `.env.local`:
+
+```dotenv
+AZURE_TRANSLATOR_KEY=your_azure_translator_key
+AZURE_TRANSLATOR_REGION=your_resource_region
+AZURE_TRANSLATOR_ENDPOINT=https://api.cognitive.microsofttranslator.com
+```
+
+Google Cloud Translation can be used as a second provider:
 
 1. Create or select a project in Google Cloud Console.
 2. Enable **Cloud Translation API** and attach a billing account.
 3. Create an API key under **APIs & Services → Credentials**.
-4. Restrict the key to **Cloud Translation API**. For production, also apply
-   the network or application restrictions appropriate for the deployment.
-5. Add the key to `.env.local`, then restart the Next.js server:
+4. Restrict the key to **Cloud Translation API**.
+5. Add the key to `.env.local`:
 
 ```dotenv
 GOOGLE_CLOUD_TRANSLATION_API_KEY=your_server_side_key
 ```
 
-The integration supports automatic source-language detection, explicit
-source/target selection, language swapping, copy-to-clipboard and private
-usage events. Translation text itself is not stored in learning-event
-metadata.
+LibreTranslate can be self-hosted or pointed at a trusted instance:
+
+```dotenv
+LIBRETRANSLATE_URL=http://localhost:5000
+LIBRETRANSLATE_API_KEY=
+```
+
+After changing translation environment variables, restart the Next.js server.
+The UI supports automatic source-language detection, explicit source/target
+selection, language swapping and copy-to-clipboard.
 
 ## Speech Recognition
 
