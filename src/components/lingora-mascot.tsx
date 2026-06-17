@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { readClientAiConfig } from "@/lib/client-ai-config";
 import type { MascotMood } from "@/lib/gamification";
+import { canShowMascotCompanion } from "@/lib/mascot-visibility";
 import { cn } from "@/lib/utils";
 import { useExperience } from "@/components/experience-provider";
 
@@ -142,12 +143,7 @@ export function MascotCompanion() {
     }
   }
 
-  if (
-    !showMascot ||
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/learn/") ||
-    pathname.startsWith("/ai-tutor")
-  ) {
+  if (!canShowMascotCompanion(pathname, showMascot)) {
     return null;
   }
 
